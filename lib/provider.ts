@@ -25,6 +25,14 @@ async function isAvailable(): Promise<boolean> {
   return settings.enabled
 }
 
+// What the method is called at checkout and in the admin. The shop owner names
+// it on the settings tab; the fixed `label` below is only what a shop that has
+// left the box empty falls back to.
+async function getLabel(): Promise<string> {
+  const settings = await getSquareSettings()
+  return settings.paymentDescription
+}
+
 async function createIntent(order: ShpOrderDraft): Promise<ShpPaymentIntent> {
   const settings = await getSquareSettings()
   const prefix = settings.paymentDescription.trim()
@@ -112,6 +120,7 @@ async function refundOrder(refund: ShpRefundRequest): Promise<ShpRefundResult> {
 export const squarePaymentProvider: ShpPaymentProvider = {
   id: METHOD_ID,
   label: 'Card payment (Square)',
+  getLabel,
   confirmMode: 'auto',
   isAvailable,
   createIntent,

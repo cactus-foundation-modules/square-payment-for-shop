@@ -435,15 +435,16 @@ export function SquareSettingsTab() {
             <div className="field">
               <label htmlFor="sqp-description">Payment description</label>
               <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
-                Shown to the shopper on the Square checkout page. The order number is added
-                automatically. Leave blank to just use the order number.
+                What this payment method is called at your checkout and on your orders, and what the
+                shopper sees on the Square page (with the order number added). Leave blank for
+                &ldquo;Card payment (Square)&rdquo;.
               </p>
               <input
                 id="sqp-description"
                 type="text"
                 maxLength={100}
                 value={settings.paymentDescription}
-                placeholder="e.g. Your shop name"
+                placeholder="e.g. Card payment"
                 onChange={(e) => setSettings({ ...settings, paymentDescription: e.target.value })}
                 onBlur={() => saveSettings(settings)}
               />

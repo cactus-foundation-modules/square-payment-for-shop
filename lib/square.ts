@@ -1,14 +1,22 @@
 // Thin Square REST client. No SDK dependency - the handful of Payment Links /
 // Orders / Payments / Refunds calls this module needs are plain REST.
 // API reference: https://developer.squareup.com/reference/square
-import { getSquareAccessToken, getSquareApiBase, getSquareLocationId } from '@/modules/square-payment-for-shop/lib/env'
+import {
+  getSquareAccessToken, getSquareApiBase, getSquareLocationId, type SquareEnvironment,
+} from '@/modules/square-payment-for-shop/lib/env'
 
 const SQUARE_VERSION = '2024-01-18'
 
-type SqFetchInit = { method?: string; body?: unknown }
+// Credentials supplied by the caller instead of read from the environment. The
+// settings tab uses this to look up locations for a token that has only just
+// been typed in - env vars are not readable until the next deployment, so
+// without it the location picker would be useless exactly when it is needed.
+export type SquareCredentials = { accessToken: string; environment: SquareEnvironment }
+
+type SqFetchInit = { method?: string; body?: unknown; creds?: SquareCredentials }
 
 async function sqFetch<T>(path: string, init: SqFetchInit = {}): Promise<T> {
-  const token = getSquareAccessToken()
+  const token = init.creds?.accessToken ?? getSquareAccessToken()
   if (!token) throw new Error('Square is not configured')
 
   const headers: Record<string, string> = {
@@ -18,7 +26,8 @@ async function sqFetch<T>(path: string, init: SqFetchInit = {}): Promise<T> {
   }
   if (init.body !== undefined) headers['Content-Type'] = 'application/json'
 
-  const res = await fetch(`${getSquareApiBase()}${path}`, {
+  const base = init.creds ? getSquareApiBase(init.creds.environment) : getSquareApiBase()
+  const res = await fetch(`${base}${path}`, {
     method: init.method ?? 'GET',
     headers,
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
@@ -141,6 +150,26 @@ export async function verifyCredentials(): Promise<void> {
   const locationId = getSquareLocationId()
   if (!locationId) throw new Error('Square location id is not set')
   await sqFetch(`/v2/locations/${encodeURIComponent(locationId)}`)
+}
+
+// --- Locations ------------------------------------------------------------
+
+export type SqLocation = { id: string; name: string; status: string; currency: string | null }
+
+// Square's app credentials page hands out an Application ID and an access
+// token; the location id lives on a different page again. Rather than send the
+// admin hunting for it, the settings tab lists what the token can see and lets
+// them pick.
+export async function listLocations(creds?: SquareCredentials): Promise<SqLocation[]> {
+  const data = await sqFetch<{
+    locations?: Array<{ id: string; name?: string; status?: string; currency?: string }>
+  }>('/v2/locations', { creds })
+  return (data.locations ?? []).map((l) => ({
+    id: l.id,
+    name: l.name?.trim() || l.id,
+    status: l.status ?? 'UNKNOWN',
+    currency: l.currency ?? null,
+  }))
 }
 
 // --- Refunds --------------------------------------------------------------

@@ -61,6 +61,10 @@ async function handleEvent(event: SqWebhookEvent): Promise<void> {
 }
 
 export async function POST(request: NextRequest) {
+  // No signature key means no way to tell Square's calls from anyone else's, so
+  // nothing is accepted. The payment method still works without one - the
+  // redirect-return route confirms the payment - this is just the backstop for
+  // the shopper who never comes back.
   const key = getSquareWebhookSignatureKey()
   if (!key) return new NextResponse('Not configured', { status: 503 })
 

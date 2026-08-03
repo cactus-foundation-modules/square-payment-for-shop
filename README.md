@@ -31,10 +31,23 @@ the admin, or in `.env.local` for local development):
 
 | Variable | Purpose |
 |----------|---------|
-| `SQUARE_ACCESS_TOKEN` | Your Square API access token. |
-| `SQUARE_LOCATION_ID` | The Square location payments are taken under. |
-| `SQUARE_WEBHOOK_SIGNATURE_KEY` | The signature key for the webhook subscription you add in the Square developer dashboard. |
-| `SQUARE_ENVIRONMENT` | `sandbox` (default) or `production`. |
+| `SQUARE_ENVIRONMENT` | `sandbox` (default) or `production`. Picks which credential set below is used. |
+| `SQUARE_ACCESS_TOKEN` | Production API access token. |
+| `SQUARE_LOCATION_ID` | Production location payments are taken under. |
+| `SQUARE_WEBHOOK_SIGNATURE_KEY` | Production webhook subscription's signature key. Optional. |
+| `SQUARE_SANDBOX_ACCESS_TOKEN` | Sandbox API access token. |
+| `SQUARE_SANDBOX_LOCATION_ID` | Sandbox location payments are taken under. |
+| `SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY` | Sandbox webhook subscription's signature key. Optional. |
+
+Sandbox and production credentials are held separately, so both can be set at
+once and `SQUARE_ENVIRONMENT` swaps between them without anything being
+retyped.
+
+Square's app **Credentials** page gives you an Application ID and an access
+token; only the access token is needed here (the Application ID is for the Web
+Payments SDK and OAuth, neither of which this module uses). The location ID is
+kept on a different page again, so the settings tab has a **Look up locations**
+button that lists what the token can see and fills the field in.
 
 Then turn the method on under **Shop → Payments → Square** and add a webhook
 subscription in the Square developer dashboard (subscribed to the
@@ -45,7 +58,11 @@ https://<your-site>/api/m/square-payment-for-shop/webhook
 ```
 
 The webhook URL must match exactly - Square's signature scheme covers the URL
-as well as the payload, so a mismatch fails verification.
+as well as the payload, so a mismatch fails verification. Square issues the
+signature key once the subscription exists; paste it back into the settings tab.
 
-Sandbox and production use different access tokens, location IDs and signature
-keys, so switching `SQUARE_ENVIRONMENT` means updating all three to match.
+The signature key is optional. Without it the payment method still works and
+payments are confirmed when the shopper is redirected back from Square - the
+webhook is the backstop for a shopper who pays and then closes the tab, so a
+live site should have one. The access token and location ID for the chosen
+environment are what actually gate the method at checkout.

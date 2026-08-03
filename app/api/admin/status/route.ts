@@ -4,19 +4,18 @@
 // recommended but does not gate the payment method.
 import { NextResponse } from 'next/server'
 import { requireShopUser } from '@/modules/shop/lib/access'
-import {
-  isSquareConfigured, isSquareWebhookConfigured, getSquareEnvironment,
-} from '@/modules/square-payment-for-shop/lib/env'
+import { isSquareConfigured, isSquareWebhookConfigured } from '@/modules/square-payment-for-shop/lib/env'
+import { getSquareEnvironment } from '@/modules/square-payment-for-shop/lib/settings'
 import { verifyCredentials } from '@/modules/square-payment-for-shop/lib/square'
 
 export async function GET() {
   const gate = await requireShopUser('shop.manage')
   if (gate.error) return gate.error
 
-  const environment = getSquareEnvironment()
-  const webhookConfigured = isSquareWebhookConfigured()
+  const environment = await getSquareEnvironment()
+  const webhookConfigured = isSquareWebhookConfigured(environment)
 
-  if (!isSquareConfigured()) {
+  if (!isSquareConfigured(environment)) {
     return NextResponse.json({ configured: false, environment, webhookConfigured })
   }
 

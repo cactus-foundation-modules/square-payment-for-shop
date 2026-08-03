@@ -18,11 +18,12 @@ function toMinorUnits(amount: number): number {
 }
 
 // Offered at checkout only when the credentials are set AND the admin has turned
-// the method on in its settings tab.
+// the method on in its settings tab. Both come off one settings read, so the
+// credentials checked are always the ones for the environment the shop is
+// actually in.
 async function isAvailable(): Promise<boolean> {
-  if (!isSquareConfigured()) return false
   const settings = await getSquareSettings()
-  return settings.enabled
+  return settings.enabled && isSquareConfigured(settings.environment)
 }
 
 // What the method is called at checkout and in the admin. The shop owner names

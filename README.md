@@ -31,7 +31,6 @@ the admin, or in `.env.local` for local development):
 
 | Variable | Purpose |
 |----------|---------|
-| `SQUARE_ENVIRONMENT` | `sandbox` (default) or `production`. Picks which credential set below is used. |
 | `SQUARE_ACCESS_TOKEN` | Production API access token. |
 | `SQUARE_LOCATION_ID` | Production location payments are taken under. |
 | `SQUARE_WEBHOOK_SIGNATURE_KEY` | Production webhook subscription's signature key. Optional. |
@@ -40,8 +39,14 @@ the admin, or in `.env.local` for local development):
 | `SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY` | Sandbox webhook subscription's signature key. Optional. |
 
 Sandbox and production credentials are held separately, so both can be set at
-once and `SQUARE_ENVIRONMENT` swaps between them without anything being
+once and the environment picker swaps between them without anything being
 retyped.
+
+**Which environment is live is a setting, not an environment variable.** It is
+chosen on the settings tab and stored in `sqp_settings.environment`, so it takes
+effect on the next request rather than the next deployment. `SQUARE_ENVIRONMENT`
+is still read as the fallback for an installation that has never picked one, so
+an older site keeps whatever it was set to.
 
 Square's app **Credentials** page gives you an Application ID and an access
 token; only the access token is needed here (the Application ID is for the Web

@@ -4,8 +4,14 @@
 // this renders inside admin > Shop > Payments alongside Stripe and PayPal
 // rather than as a top-level Settings tab. Credentials are stored as
 // environment variables through the core-managed /api/admin/env route (declared
-// via requiredEnvVars); the on/off toggle and payment description are this
-// module's own settings.
+// via requiredEnvVars); the on/off toggle, the payment description and the
+// choice of environment are this module's own settings.
+//
+// The environment picker deliberately does NOT go through /api/admin/env. An
+// environment variable written there only reaches the running server at the
+// next deployment, so the panel would re-read the old value the moment it
+// reloaded and put the dropdown straight back where it started - a save that
+// looked like a failure. Being a stored setting, it applies immediately.
 //
 // Sandbox and production have their own separate boxes, because they have their
 // own separate credentials. Both sets are shown at once so "(set)" always means
@@ -70,7 +76,7 @@ type Status = {
   error?: string
 }
 
-type Settings = { enabled: boolean; paymentDescription: string }
+type Settings = { enabled: boolean; paymentDescription: string; environment: Environment }
 
 type SqLocation = { id: string; name: string; status: string; currency: string | null }
 
@@ -108,12 +114,12 @@ export function SquareSettingsTab() {
         setSetVars(d.vars ?? {})
         setLocalMode(!!d.localMode)
       }
-      if (statusRes.ok) {
-        const s = (await statusRes.json()) as Status
-        setStatus(s)
+      if (statusRes.ok) setStatus((await statusRes.json()) as Status)
+      if (settingsRes.ok) {
+        const s = (await settingsRes.json()) as Settings
+        setSettings(s)
         if (s.environment === 'production' || s.environment === 'sandbox') setEnvironment(s.environment)
       }
-      if (settingsRes.ok) setSettings(await settingsRes.json())
     } catch {
       // Sections still render with defaults.
     }
@@ -164,8 +170,12 @@ export function SquareSettingsTab() {
       const vars = Object.entries(values)
         .map(([key, value]) => ({ key, value: value.trim() }))
         .filter((v) => v.value !== '')
-      // Environment is not secret, so always send it (a select can't be "left blank").
-      vars.push({ key: 'SQUARE_ENVIRONMENT', value: environment })
+      // The environment is saved on the spot by its own picker, so an untouched
+      // form really has nothing to send. Saying "Saved" over an empty POST is
+      // how a credential ends up looking stored when nothing happened.
+      if (vars.length === 0) {
+        throw new Error('Nothing to save - fill in an access token or location ID first.')
+      }
 
       const res = await fetch('/api/admin/env', {
         method: 'POST',
@@ -192,24 +202,50 @@ export function SquareSettingsTab() {
     }
   }
 
+  async function patchSettings(patch: Partial<Settings>): Promise<Settings | null> {
+    const res = await fetch('/api/m/square-payment-for-shop/admin/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    const d = await res.json()
+    if (!res.ok) throw new Error(d.error ?? 'Failed to save')
+    setSettings(d as Settings)
+    return d as Settings
+  }
+
   async function saveSettings(next: Settings) {
     setSavingSettings(true)
     setSavedSettings(false)
     setSettingsError('')
     try {
-      const res = await fetch('/api/m/square-payment-for-shop/admin/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(next),
-      })
-      const d = await res.json()
-      if (!res.ok) throw new Error(d.error ?? 'Failed to save')
-      setSettings(d)
+      await patchSettings(next)
       setSavedSettings(true)
     } catch (err) {
       setSettingsError(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSavingSettings(false)
+    }
+  }
+
+  // Which environment is live is a stored setting, not an environment variable,
+  // so it applies at once - no deployment, and nothing to press Save for. The
+  // status panel is re-read straight afterwards because the answer to "is this
+  // connected" is entirely different for the other environment's credentials.
+  async function chooseEnvironment(next: Environment) {
+    const previous = environment
+    setEnvironment(next)
+    setSavingConn(true)
+    setSavedConn(false)
+    setConnError('')
+    try {
+      await patchSettings({ environment: next })
+      await load()
+    } catch (err) {
+      setEnvironment(previous)
+      setConnError(err instanceof Error ? err.message : 'Could not switch environment')
+    } finally {
+      setSavingConn(false)
     }
   }
 
@@ -368,27 +404,36 @@ export function SquareSettingsTab() {
           </div>
         )}
 
+        {/* Outside the local-development branch on purpose: the choice is kept
+            here rather than in the hosting project, so it works the same way
+            everywhere and needs no deployment to take hold. */}
+        <div className="field">
+          <label htmlFor="sqp-environment">Which environment the shop uses</label>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
+            Saved as soon as you pick it and live straight away - no deployment needed. Each
+            environment uses its own credentials, so make sure the ones below are filled in for
+            whichever you choose.
+          </p>
+          <select
+            id="sqp-environment"
+            value={environment}
+            disabled={savingConn}
+            onChange={(e) => chooseEnvironment(e.target.value === 'production' ? 'production' : 'sandbox')}
+          >
+            <option value="sandbox">Sandbox (testing)</option>
+            <option value="production">Production</option>
+          </select>
+        </div>
+
         {localMode ? (
           <div className="alert alert-warning">
-            Local development mode: set <code>SQUARE_ENVIRONMENT</code> plus the credentials for that
-            environment (<code>SQUARE_ACCESS_TOKEN</code> and <code>SQUARE_LOCATION_ID</code>, or{' '}
+            Local development mode: set the credentials for the environment chosen above (
+            <code>SQUARE_ACCESS_TOKEN</code> and <code>SQUARE_LOCATION_ID</code>, or{' '}
             <code>SQUARE_SANDBOX_ACCESS_TOKEN</code> and <code>SQUARE_SANDBOX_LOCATION_ID</code>) in{' '}
             <code>.env.local</code> and restart the dev server.
           </div>
         ) : (
           <>
-            <div className="field">
-              <label htmlFor="sqp-environment">Which environment the shop uses</label>
-              <select
-                id="sqp-environment"
-                value={environment}
-                onChange={(e) => setEnvironment(e.target.value === 'production' ? 'production' : 'sandbox')}
-              >
-                <option value="sandbox">Sandbox (testing)</option>
-                <option value="production">Production</option>
-              </select>
-            </div>
-
             {ENVIRONMENTS.map((e) => renderCredentials(e.id))}
 
             <button className="btn btn-primary" disabled={savingConn} onClick={saveConnection}>

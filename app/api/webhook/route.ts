@@ -4,7 +4,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { getSiteUrl } from '@/lib/config/env'
-import { getSquareWebhookSignatureKey } from '@/modules/square-payment-for-shop/lib/env'
+import { getSquareCredentials } from '@/modules/square-payment-for-shop/lib/env'
+import { getSquareEnvironment } from '@/modules/square-payment-for-shop/lib/settings'
 import * as sq from '@/modules/square-payment-for-shop/lib/square'
 import { getSqpPaymentByPaymentId, getSqpPaymentBySquareOrderId } from '@/modules/square-payment-for-shop/lib/db'
 import { settleFromPayment } from '@/modules/square-payment-for-shop/lib/settle'
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
   // nothing is accepted. The payment method still works without one - the
   // redirect-return route confirms the payment - this is just the backstop for
   // the shopper who never comes back.
-  const key = getSquareWebhookSignatureKey()
+  const key = getSquareCredentials(await getSquareEnvironment()).webhookSignatureKey
   if (!key) return new NextResponse('Not configured', { status: 503 })
 
   const rawBody = await request.text()

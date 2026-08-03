@@ -1,9 +1,8 @@
 // Thin Square REST client. No SDK dependency - the handful of Payment Links /
 // Orders / Payments / Refunds calls this module needs are plain REST.
 // API reference: https://developer.squareup.com/reference/square
-import {
-  getSquareAccessToken, getSquareApiBase, getSquareLocationId, type SquareEnvironment,
-} from '@/modules/square-payment-for-shop/lib/env'
+import { getSquareApiBase, getSquareCredentials, type SquareEnvironment } from '@/modules/square-payment-for-shop/lib/env'
+import { getSquareEnvironment } from '@/modules/square-payment-for-shop/lib/settings'
 
 const SQUARE_VERSION = '2024-01-18'
 
@@ -15,9 +14,20 @@ export type SquareCredentials = { accessToken: string; environment: SquareEnviro
 
 type SqFetchInit = { method?: string; body?: unknown; creds?: SquareCredentials }
 
+// The token and the API base are always taken from the same environment, in one
+// place. Resolving them separately is how a sandbox token ends up being sent to
+// the production API, which Square answers with an authentication error that
+// says nothing at all about the real cause.
+async function resolveCredentials(): Promise<SquareCredentials & { locationId: string | null }> {
+  const environment = await getSquareEnvironment()
+  const { accessToken, locationId } = getSquareCredentials(environment)
+  if (!accessToken) throw new Error('Square is not configured')
+  return { accessToken, environment, locationId }
+}
+
 async function sqFetch<T>(path: string, init: SqFetchInit = {}): Promise<T> {
-  const token = init.creds?.accessToken ?? getSquareAccessToken()
-  if (!token) throw new Error('Square is not configured')
+  const creds = init.creds ?? (await resolveCredentials())
+  const token = creds.accessToken
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
@@ -26,7 +36,7 @@ async function sqFetch<T>(path: string, init: SqFetchInit = {}): Promise<T> {
   }
   if (init.body !== undefined) headers['Content-Type'] = 'application/json'
 
-  const base = init.creds ? getSquareApiBase(init.creds.environment) : getSquareApiBase()
+  const base = getSquareApiBase(creds.environment)
   const res = await fetch(`${base}${path}`, {
     method: init.method ?? 'GET',
     headers,
@@ -57,14 +67,20 @@ export async function createPaymentLink(input: {
   redirectUrl: string
   idempotencyKey: string
 }): Promise<SqPaymentLink> {
+  // Resolved once and passed down, so the location and the token that authorises
+  // it are guaranteed to belong to the same Square environment.
+  const creds = await resolveCredentials()
+  if (!creds.locationId) throw new Error('Square location id is not set')
+
   const data = await sqFetch<{ payment_link: { id: string; url: string; order_id: string } }>(
     '/v2/online-checkout/payment-links',
     {
+      creds,
       method: 'POST',
       body: {
         idempotency_key: input.idempotencyKey,
         order: {
-          location_id: getSquareLocationId(),
+          location_id: creds.locationId,
           reference_id: input.referenceId,
           line_items: [
             {
@@ -147,9 +163,9 @@ export async function getPayment(id: string): Promise<SqPayment> {
 // Cheap authenticated call used to check the access token works, points at the
 // expected environment, and that the location id is real. Throws on failure.
 export async function verifyCredentials(): Promise<void> {
-  const locationId = getSquareLocationId()
-  if (!locationId) throw new Error('Square location id is not set')
-  await sqFetch(`/v2/locations/${encodeURIComponent(locationId)}`)
+  const creds = await resolveCredentials()
+  if (!creds.locationId) throw new Error('Square location id is not set')
+  await sqFetch(`/v2/locations/${encodeURIComponent(creds.locationId)}`, { creds })
 }
 
 // --- Locations ------------------------------------------------------------

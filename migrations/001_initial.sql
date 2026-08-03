@@ -2,15 +2,18 @@
 -- All DDL idempotent so it is safe to re-run on every deploy.
 
 -- Non-secret module settings (singleton). Credentials live in env vars
--- (SQUARE_ACCESS_TOKEN / SQUARE_LOCATION_ID / SQUARE_WEBHOOK_SIGNATURE_KEY /
--- SQUARE_ENVIRONMENT), never in the database.
+-- (SQUARE_ACCESS_TOKEN / SQUARE_LOCATION_ID / SQUARE_WEBHOOK_SIGNATURE_KEY),
+-- never in the database. Which environment those credentials are used against
+-- IS stored here - see 002 for why. NULL falls back to SQUARE_ENVIRONMENT.
 CREATE TABLE IF NOT EXISTS "sqp_settings" (
     "id" TEXT NOT NULL DEFAULT 'singleton',
     "enabled" BOOLEAN NOT NULL DEFAULT false,
     "payment_description" TEXT NOT NULL DEFAULT '',
+    "environment" TEXT,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "sqp_settings_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "sqp_settings_singleton" CHECK ("id" = 'singleton')
+    CONSTRAINT "sqp_settings_singleton" CHECK ("id" = 'singleton'),
+    CONSTRAINT "sqp_settings_environment_check" CHECK ("environment" IS NULL OR "environment" IN ('sandbox', 'production'))
 );
 INSERT INTO "sqp_settings" ("id") VALUES ('singleton') ON CONFLICT ("id") DO NOTHING;
 

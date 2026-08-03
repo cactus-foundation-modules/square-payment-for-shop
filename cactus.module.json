@@ -1,9 +1,9 @@
 {
   "name": "square-payment-for-shop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "tablePrefix": "sqp_",
   "description": "Square Payments for the Shop: card payments taken on Square's hosted checkout page, with refunds and webhook confirmation. No card data ever touches the site.",
-  "requiresCoreVersion": "0.5.874",
+  "requiresCoreVersion": "0.5.875",
   "requiresModules": [
     { "name": "shop", "minVersion": "0.1.90" }
   ],

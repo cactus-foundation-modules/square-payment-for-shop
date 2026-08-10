@@ -271,7 +271,7 @@ export function SquareSettingsTab() {
             <span
               style={{
                 fontSize: 'var(--text-xs)',
-                color: 'var(--color-success, var(--color-text-muted))',
+                color: 'var(--color-success, var(--color-text-secondary))',
                 border: '1px solid currentColor',
                 borderRadius: 'var(--radius-sm)',
                 padding: '0 var(--space-2)',
@@ -281,7 +281,7 @@ export function SquareSettingsTab() {
             </span>
           )}
         </div>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-3)' }}>
+        <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-3)' }}>
           {meta.hint}
         </p>
 
@@ -292,18 +292,18 @@ export function SquareSettingsTab() {
               <label htmlFor={`sqp-${key}`}>
                 {label}
                 {optional && (
-                  <span style={{ marginLeft: 'var(--space-2)', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                  <span style={{ marginLeft: 'var(--space-2)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
                     (optional)
                   </span>
                 )}
                 {setVars[key] && (
-                  <span style={{ marginLeft: 'var(--space-2)', fontSize: 'var(--text-xs)', color: 'var(--color-success, var(--color-text-muted))' }}>
+                  <span style={{ marginLeft: 'var(--space-2)', fontSize: 'var(--text-xs)', color: 'var(--color-success, var(--color-text-secondary))' }}>
                     (set)
                   </span>
                 )}
               </label>
               {help && (
-                <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
                   {help}
                 </p>
               )}
@@ -348,7 +348,7 @@ export function SquareSettingsTab() {
                     </select>
                   )}
                   {onlyLocation && (
-                    <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: 'var(--space-2) 0 0' }}>
+                    <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: 'var(--space-2) 0 0' }}>
                       Found <strong>{onlyLocation.name}</strong> and filled it in above.
                     </p>
                   )}
@@ -365,7 +365,7 @@ export function SquareSettingsTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       <div className="card">
         <h2 className="card-title">Square</h2>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-4)' }}>
+        <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-4)' }}>
           Take card payments on Square&apos;s hosted checkout page - card details never touch this
           site. Sandbox and production have their own credentials, so each gets its own box below;
           fill in whichever you are using, pick which one the shop should use, then turn the method
@@ -409,7 +409,7 @@ export function SquareSettingsTab() {
             everywhere and needs no deployment to take hold. */}
         <div className="field">
           <label htmlFor="sqp-environment">Which environment the shop uses</label>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
+          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
             Saved as soon as you pick it and live straight away - no deployment needed. Each
             environment uses its own credentials, so make sure the ones below are filled in for
             whichever you choose.
@@ -444,7 +444,7 @@ export function SquareSettingsTab() {
 
         <div className="field" style={{ marginTop: 'var(--space-4)' }}>
           <label htmlFor="sqp-webhook-url">Webhook URL</label>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
+          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
             Add this as a webhook subscription in your Square developer dashboard (subscribe to the
             payment events) so payments are confirmed automatically. Square shows the signature key
             for the subscription once it exists - paste that into the box above. The URL must match
@@ -457,7 +457,7 @@ export function SquareSettingsTab() {
 
       <div className="card">
         <h2 className="card-title">Payment method</h2>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-4)' }}>
+        <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-4)' }}>
           When switched on, card payment through Square appears as a payment option at checkout (as
           long as the connection above is working).
         </p>
@@ -479,7 +479,7 @@ export function SquareSettingsTab() {
 
             <div className="field">
               <label htmlFor="sqp-description">Payment description</label>
-              <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
                 What this payment method is called at your checkout and on your orders, and what the
                 shopper sees on the Square page (with the order number added). Leave blank for
                 &ldquo;Card payment (Square)&rdquo;.

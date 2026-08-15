@@ -5,6 +5,7 @@
 // settlement.
 import { NextRequest, NextResponse } from 'next/server'
 import { getSiteUrl } from '@/lib/config/env'
+import { signOrderReceiptToken } from '@/modules/shop/lib/order-receipt-token'
 import { getOrderById, markOrderAwaitingConfirmation } from '@/modules/shop/lib/db/orders'
 import * as sq from '@/modules/square-payment-for-shop/lib/square'
 import { getSqpPaymentByOrderId } from '@/modules/square-payment-for-shop/lib/db'
@@ -42,8 +43,13 @@ export async function GET(request: NextRequest) {
     console.error('[square-payment] return confirmation failed', err)
   }
 
+  // The signed receipt token, never the customer's email address. A redirect
+  // URL lands in the site's access logs, the shopper's browser history and the
+  // Referer header sent to every third party the confirmation page loads - and
+  // an email address has no business in any of them. See shop's
+  // lib/order-receipt-token, which the confirmation page verifies against.
   const confirmationUrl =
     `${siteUrl}/shop/checkout/confirmation` +
-    `?orderNumber=${encodeURIComponent(order.orderNumber)}&email=${encodeURIComponent(order.customerEmail)}`
+    `?orderNumber=${encodeURIComponent(order.orderNumber)}&t=${encodeURIComponent(signOrderReceiptToken(order.orderNumber))}`
   return NextResponse.redirect(confirmationUrl)
 }

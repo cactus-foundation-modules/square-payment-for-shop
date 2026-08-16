@@ -9,6 +9,7 @@ import { isSquareConfigured } from '@/modules/square-payment-for-shop/lib/env'
 import { getSquareSettings } from '@/modules/square-payment-for-shop/lib/settings'
 import * as sq from '@/modules/square-payment-for-shop/lib/square'
 import { createSqpPayment, getSqpPaymentByOrderId, updateSqpPayment } from '@/modules/square-payment-for-shop/lib/db'
+import { squareLogo } from '@/modules/square-payment-for-shop/lib/logo'
 
 const METHOD_ID = 'SQUARE'
 const RETURN_PATH = '/api/m/square-payment-for-shop/return'
@@ -121,6 +122,7 @@ async function refundOrder(refund: ShpRefundRequest): Promise<ShpRefundResult> {
 export const squarePaymentProvider: ShpPaymentProvider = {
   id: METHOD_ID,
   label: 'Card payment (Square)',
+  logo: squareLogo,
   getLabel,
   confirmMode: 'auto',
   isAvailable,

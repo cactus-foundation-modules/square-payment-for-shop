@@ -122,6 +122,7 @@ async function refundOrder(refund: ShpRefundRequest): Promise<ShpRefundResult> {
 export const squarePaymentProvider: ShpPaymentProvider = {
   id: METHOD_ID,
   label: 'Card payment (Square)',
+  description: 'Credit and debit card payments are securely handled by our payment partner Square.',
   logo: squareLogo,
   getLabel,
   confirmMode: 'auto',

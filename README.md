@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="module-art.webp" alt="Square Payments for Shop" width="640" />
+</p>
+
 # Square Payments for Shop
 
 Adds **card payment via Square** as a checkout payment method in the Cactus

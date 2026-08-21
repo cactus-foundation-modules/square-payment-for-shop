@@ -126,6 +126,12 @@ export const squarePaymentProvider: ShpPaymentProvider = {
   logo: squareLogo,
   getLabel,
   confirmMode: 'auto',
+  // The card is typed on Square's own hosted page, and plenty of shoppers close
+  // it without ever typing one. An order written before they left would be an
+  // order nobody had paid for, sitting in the owner's list looking exactly like
+  // one somebody had - so the checkout drafts it instead and settle.ts creates
+  // it the moment the card is authorised.
+  orderCreation: 'on-payment',
   isAvailable,
   createIntent,
   confirmPayment,

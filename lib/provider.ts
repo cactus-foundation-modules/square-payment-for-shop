@@ -67,6 +67,31 @@ async function getLabel(): Promise<string> {
   return settings.paymentDescription
 }
 
+// The publishable half of what the browser's Square SDK needs, and nothing that
+// depends on an order. Shop puts this on its public checkout config, which is
+// what lets the card fields draw the instant the shopper picks the method
+// rather than waiting for a payment intent - and an intent cannot exist until
+// the checkout is filled in and every compulsory box is ticked, so fields fed
+// only by the intent appeared only after the shopper had agreed to the terms.
+//
+// null unless the shop is actually taking cards on its own checkout: on the
+// hosted page there is nothing here to draw, and this goes to every shopper who
+// loads the page whether they pay by card or not.
+async function getClientFields(): Promise<Record<string, unknown> | null> {
+  const settings = await getSquareSettings()
+  if (!settings.enabled || settings.cardEntry !== 'on-page') return null
+  const creds = getSquareCredentials(settings.environment)
+  if (!creds.applicationId || !creds.locationId) return null
+  // The Application ID is publishable by design - it is what the SDK boots
+  // from. Nothing else here is a secret either: a location id and the name of
+  // an environment.
+  return {
+    applicationId: creds.applicationId,
+    locationId: creds.locationId,
+    environment: settings.environment,
+  }
+}
+
 async function createIntent(order: ShpOrderDraft): Promise<ShpPaymentIntent> {
   const settings = await getSquareSettings()
   const description = paymentDescription(settings.paymentDescription, order.orderNumber)
@@ -94,17 +119,14 @@ async function createIntent(order: ShpOrderDraft): Promise<ShpPaymentIntent> {
       currency: order.currency,
     })
 
-    const creds = getSquareCredentials(settings.environment)
     return {
       providerOrderId: squareOrder.id,
-      // Everything the browser's Square SDK needs, and nothing else. The
-      // Application ID is publishable by design - it is what the SDK boots
-      // from - and the amount is the shop's own figure rather than anything the
-      // client worked out, because it is what the bank is asked to authorise.
+      // Only what this ORDER adds. The Application ID and location came from
+      // getClientFields long before this, when the shopper picked the method;
+      // shop merges the two. The amount is the shop's own figure rather than
+      // anything the client worked out, because it is what the bank is asked to
+      // authorise.
       clientFields: {
-        applicationId: creds.applicationId ?? '',
-        locationId: creds.locationId ?? '',
-        environment: settings.environment,
         // Major units as a string: what Square's verifyBuyer() wants, and the
         // one place a float would round somebody's total by a penny.
         amount: order.amount.toFixed(2),
@@ -271,6 +293,7 @@ export const squarePaymentProvider: ShpPaymentProvider = {
   description: 'Credit and debit card payments are securely handled by our payment partner Square.',
   logo: squareLogo,
   getLabel,
+  getClientFields,
   confirmMode: 'auto',
   // No order until the card is authorised, in BOTH modes.
   //

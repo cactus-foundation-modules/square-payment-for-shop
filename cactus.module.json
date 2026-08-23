@@ -1,13 +1,13 @@
 {
   "name": "square-payment-for-shop",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "tablePrefix": "sqp_",
   "description": "Square card payments for the Shop: taken in Square's own card fields on your own checkout, or on Square's hosted page, with refunds and webhook confirmation. No card data ever touches the site.",
-  "requiresCoreVersion": "0.5.1228",
+  "requiresCoreVersion": "0.5.1239",
   "requiresModules": [
     {
       "name": "shop",
-      "minVersion": "0.1.301"
+      "minVersion": "0.1.306"
     }
   ],
   "requiredEnvVars": [
@@ -86,6 +86,7 @@
   },
   "cspOrigins": {
     "script": [
+      "https://*.squarecdn.com",
       "https://web.squarecdn.com",
       "https://sandbox.web.squarecdn.com",
       "https://js.squareup.com",
@@ -94,26 +95,38 @@
       "https://connect.squareupsandbox.com"
     ],
     "style": [
+      "https://*.squarecdn.com",
       "https://web.squarecdn.com",
       "https://sandbox.web.squarecdn.com"
     ],
     "frame": [
+      "https://*.squarecdn.com",
       "https://web.squarecdn.com",
       "https://sandbox.web.squarecdn.com",
       "https://connect.squareup.com",
       "https://connect.squareupsandbox.com"
     ],
     "connect": [
+      "https://*.squarecdn.com",
       "https://pci-connect.squareup.com",
       "https://pci-connect.squareupsandbox.com",
       "https://connect.squareup.com",
       "https://connect.squareupsandbox.com"
     ],
     "img": [
-      "https://d1g145x70srn7h.cloudfront.net"
+      "https://*.squarecdn.com",
+      "https://web.squarecdn.com",
+      "https://sandbox.web.squarecdn.com"
     ],
     "font": [
-      "https://d1g145x70srn7h.cloudfront.net"
+      "https://*.squarecdn.com",
+      "https://square-fonts-production-f.squarecdn.com",
+      "https://cash-f.squarecdn.com"
+    ],
+    "form-action": [
+      "https://*.cardinalcommerce.com",
+      "https://authentication.cardinalcommerce.com",
+      "https://centinelapi.cardinalcommerce.com"
     ]
   }
 }

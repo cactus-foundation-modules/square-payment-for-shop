@@ -93,9 +93,15 @@ function cardStyle(): Record<string, Record<string, string>> {
   const danger = readToken('--color-danger', '#c0392b')
   const accent = readToken('--color-primary', text)
   return {
-    '.input-container': { borderColor: border, borderRadius: '6px' },
-    '.input-container.is-focus': { borderColor: accent },
-    '.input-container.is-error': { borderColor: danger },
+    // backgroundColor belongs on the CONTAINER, not only on the inputs. Square
+    // paints the box white by default, and styling just the inputs leaves that
+    // white showing through everywhere an input does not reach - the gaps
+    // between the rows, the padding, and any field Square draws that the plain
+    // `input` selector does not cover. On a dark checkout the result is a white
+    // slab with one or two dark cells punched into it.
+    '.input-container': { backgroundColor: surface, borderColor: border, borderRadius: '6px' },
+    '.input-container.is-focus': { backgroundColor: surface, borderColor: accent },
+    '.input-container.is-error': { backgroundColor: surface, borderColor: danger },
     input: { color: text, backgroundColor: surface, fontSize: '16px' },
     'input::placeholder': { color: muted },
     '.message-text': { color: muted },
@@ -199,7 +205,29 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
       if (cancelled || !window.Square) return
 
       const payments = window.Square.payments(applicationId, locationId)
-      const created = await payments.card({ style: cardStyle() })
+
+      // The postcode is supplied AT CREATION, which is what hides Square's own
+      // postal-code box - the shopper typed it two steps up this very page and
+      // being asked again is both a nuisance and, as it turns out, ugly: that
+      // field is styled apart from the rest of the card form and kept a white
+      // cell on a dark checkout while its neighbours went dark around it.
+      // Setting it after attach with configure() does not hide it.
+      //
+      // Wrapped because an option this build of the SDK does not know would
+      // otherwise take the whole card form down with it, and a shopper who has
+      // to type their postcode twice is a far better outcome than one who
+      // cannot pay at all.
+      const postcode = payerRef.current.address.postcode.trim()
+      const created = await (async () => {
+        if (postcode) {
+          try {
+            return await payments.card({ style: cardStyle(), postalCode: postcode })
+          } catch {
+            // Fall through and build a plain one.
+          }
+        }
+        return payments.card({ style: cardStyle() })
+      })()
       // The shopper is back on the checkout by the time this resolves only if
       // they have not switched method meanwhile. Tearing the fresh card down
       // rather than attaching it keeps a dead form off a page that has moved on.
@@ -207,15 +235,6 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
 
       await created.attach(container)
       if (cancelled) { await created.destroy?.(); return }
-
-      // The postcode was typed two steps up this very page. Best-effort: if this
-      // build of the SDK will not take it, Square shows its own postcode box and
-      // the shopper types it again, which is a nuisance rather than a fault.
-      try {
-        await created.configure?.({ postalCode: payerRef.current.address.postcode })
-      } catch {
-        // Nothing to tell the shopper - the field simply stays.
-      }
 
       card = created
       cardRef.current = created
@@ -256,6 +275,16 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
     return () => observer.disconnect()
   }, [])
+
+  // A postcode typed AFTER the card form was built. The form is drawn the
+  // moment the shopper picks the method, which can be before they have finished
+  // the address above it, so the value that hides Square's own postcode box is
+  // not always known at creation. This is the catch-up.
+  const postcode = payer.address.postcode.trim()
+  useEffect(() => {
+    if (!ready || !postcode) return
+    void cardRef.current?.configure?.({ postalCode: postcode })
+  }, [ready, postcode])
 
   return (
     <div style={{ display: 'grid', gap: '0.5rem' }}>

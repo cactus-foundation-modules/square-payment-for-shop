@@ -100,6 +100,47 @@ export async function createPaymentLink(input: {
 
 // --- Orders ---------------------------------------------------------------
 
+// Creates a bare Square order for a single charge, with no hosted page attached.
+// Used by on-page card entry, where there is no payment link to create one as a
+// side effect.
+//
+// Made up front, before the shopper has typed a card, for one reason: the
+// webhook matches a payment back to our row by the Square order id, and that
+// only works if our row already knows it. Creating the order at payment time
+// instead would leave a window in which Square's own `payment.created` arrives
+// naming an order we have never heard of, and the webhook answers 200 to
+// anything it cannot place - so Square would never retry it.
+export async function createOrder(input: {
+  amount: number // minor units (pence)
+  currency: string
+  description: string
+  referenceId: string
+  idempotencyKey: string
+}): Promise<{ id: string }> {
+  const creds = await resolveCredentials()
+  if (!creds.locationId) throw new Error('Square location id is not set')
+
+  const data = await sqFetch<{ order: { id: string } }>('/v2/orders', {
+    creds,
+    method: 'POST',
+    body: {
+      idempotency_key: input.idempotencyKey,
+      order: {
+        location_id: creds.locationId,
+        reference_id: input.referenceId,
+        line_items: [
+          {
+            name: input.description,
+            quantity: '1',
+            base_price_money: { amount: input.amount, currency: input.currency },
+          },
+        ],
+      },
+    },
+  })
+  return { id: data.order.id }
+}
+
 // The Square order behind a payment link. Once the shopper pays, the payment is
 // linked as a tender; before that there is nothing to settle.
 export type SqOrder = { id: string; paymentId: string | null }
@@ -157,6 +198,54 @@ export function mapPayment(p: SqRawPayment): SqPayment {
 
 export async function getPayment(id: string): Promise<SqPayment> {
   const data = await sqFetch<{ payment: SqRawPayment }>(`/v2/payments/${encodeURIComponent(id)}`)
+  return mapPayment(data.payment)
+}
+
+// Charges a card token produced by the browser's Web Payments SDK. On-page card
+// entry only - the hosted checkout page charges the card itself.
+//
+// `verificationToken` is the result of the SDK's verifyBuyer() call, and it is
+// what carries Strong Customer Authentication - a UK or EEA card charged without
+// one is liable to be declined by the issuing bank for no reason the shopper can
+// see. Optional all the same, because there are cards and regions for which that
+// call has nothing to hand back, and omitting the field entirely is not the same
+// as sending an empty one: Square rejects the latter outright.
+//
+// `orderId` ties the payment to the Square order made at intent time, which is
+// how the webhook finds its way back to our row. Square rejects a payment whose
+// amount disagrees with that order's total, which makes it a second check on
+// the figures for free.
+export async function createPayment(input: {
+  sourceId: string
+  verificationToken?: string
+  amount: number // minor units (pence)
+  currency: string
+  orderId: string
+  referenceId: string
+  buyerEmail: string
+  idempotencyKey: string
+}): Promise<SqPayment> {
+  const creds = await resolveCredentials()
+  if (!creds.locationId) throw new Error('Square location id is not set')
+
+  const data = await sqFetch<{ payment: SqRawPayment }>('/v2/payments', {
+    creds,
+    method: 'POST',
+    body: {
+      idempotency_key: input.idempotencyKey,
+      source_id: input.sourceId,
+      ...(input.verificationToken ? { verification_token: input.verificationToken } : {}),
+      location_id: creds.locationId,
+      order_id: input.orderId,
+      reference_id: input.referenceId,
+      buyer_email_address: input.buyerEmail,
+      amount_money: { amount: input.amount, currency: input.currency },
+      // Capture straight away rather than authorise and capture later. The shop
+      // has no second step at which somebody decides to take the money, so an
+      // authorisation left uncaptured would simply expire.
+      autocomplete: true,
+    },
+  })
   return mapPayment(data.payment)
 }
 

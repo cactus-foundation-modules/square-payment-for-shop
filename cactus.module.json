@@ -1,27 +1,77 @@
 {
   "name": "square-payment-for-shop",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "tablePrefix": "sqp_",
-  "description": "Square Payments for the Shop: card payments taken on Square's hosted checkout page, with refunds and webhook confirmation. No card data ever touches the site.",
-  "requiresCoreVersion": "0.5.875",
+  "description": "Square card payments for the Shop: taken in Square's own card fields on your own checkout, or on Square's hosted page, with refunds and webhook confirmation. No card data ever touches the site.",
+  "requiresCoreVersion": "0.5.1228",
   "requiresModules": [
-    { "name": "shop", "minVersion": "0.1.281" }
+    {
+      "name": "shop",
+      "minVersion": "0.1.301"
+    }
   ],
   "requiredEnvVars": [
-    { "name": "SQUARE_ACCESS_TOKEN", "required": false },
-    { "name": "SQUARE_LOCATION_ID", "required": false },
-    { "name": "SQUARE_WEBHOOK_SIGNATURE_KEY", "required": false },
-    { "name": "SQUARE_SANDBOX_ACCESS_TOKEN", "required": false },
-    { "name": "SQUARE_SANDBOX_LOCATION_ID", "required": false },
-    { "name": "SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY", "required": false },
-    { "name": "SQUARE_ENVIRONMENT", "required": false }
+    {
+      "name": "SQUARE_ACCESS_TOKEN",
+      "required": false
+    },
+    {
+      "name": "SQUARE_LOCATION_ID",
+      "required": false
+    },
+    {
+      "name": "SQUARE_WEBHOOK_SIGNATURE_KEY",
+      "required": false
+    },
+    {
+      "name": "SQUARE_SANDBOX_ACCESS_TOKEN",
+      "required": false
+    },
+    {
+      "name": "SQUARE_SANDBOX_LOCATION_ID",
+      "required": false
+    },
+    {
+      "name": "SQUARE_SANDBOX_WEBHOOK_SIGNATURE_KEY",
+      "required": false
+    },
+    {
+      "name": "SQUARE_ENVIRONMENT",
+      "required": false
+    },
+    {
+      "name": "SQUARE_APPLICATION_ID",
+      "required": false
+    },
+    {
+      "name": "SQUARE_SANDBOX_APPLICATION_ID",
+      "required": false
+    }
   ],
   "permissions": [],
   "settingsTabs": [
-    { "id": "square-payments", "label": "Square", "permission": "shop.manage", "host": "shop.payments", "import": "./components/admin/SettingsTab", "component": "SquareSettingsTab" }
+    {
+      "id": "square-payments",
+      "label": "Square",
+      "permission": "shop.manage",
+      "host": "shop.payments",
+      "import": "./components/admin/SettingsTab",
+      "component": "SquareSettingsTab"
+    }
   ],
   "extensionPoints": [
-    { "point": "shop.payment-providers", "id": "square-payments", "import": "./lib/provider", "component": "squarePaymentProvider" }
+    {
+      "point": "shop.payment-providers",
+      "id": "square-payments",
+      "import": "./lib/provider",
+      "component": "squarePaymentProvider"
+    },
+    {
+      "point": "shop.checkout-payment-fields",
+      "id": "SQUARE",
+      "import": "./components/public/SquareCardFields",
+      "component": "SquareCardFields"
+    }
   ],
   "teardown": [
     "sqp_payments",
@@ -33,5 +83,37 @@
     "activityTypes": [],
     "notificationCategories": [],
     "routeTiers": []
+  },
+  "cspOrigins": {
+    "script": [
+      "https://web.squarecdn.com",
+      "https://sandbox.web.squarecdn.com",
+      "https://js.squareup.com",
+      "https://js.squareupsandbox.com",
+      "https://connect.squareup.com",
+      "https://connect.squareupsandbox.com"
+    ],
+    "style": [
+      "https://web.squarecdn.com",
+      "https://sandbox.web.squarecdn.com"
+    ],
+    "frame": [
+      "https://web.squarecdn.com",
+      "https://sandbox.web.squarecdn.com",
+      "https://connect.squareup.com",
+      "https://connect.squareupsandbox.com"
+    ],
+    "connect": [
+      "https://pci-connect.squareup.com",
+      "https://pci-connect.squareupsandbox.com",
+      "https://connect.squareup.com",
+      "https://connect.squareupsandbox.com"
+    ],
+    "img": [
+      "https://d1g145x70srn7h.cloudfront.net"
+    ],
+    "font": [
+      "https://d1g145x70srn7h.cloudfront.net"
+    ]
   }
 }

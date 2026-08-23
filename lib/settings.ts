@@ -15,10 +15,25 @@ import { prisma } from '@/lib/db/prisma'
 
 export type SquareEnvironment = 'production' | 'sandbox'
 
+// Where the shopper types their card.
+//
+//  'hosted'  - Square's own checkout page. The shopper is sent to squareup.com
+//              and redirected back. What this module did before there was a
+//              choice, and still the right answer for a shop that would rather
+//              not think about Application IDs.
+//
+//  'on-page' - Square's card fields, drawn on this site's own checkout. The
+//              fields are Square's own frames, so the card number still never
+//              touches this site, but the shopper never leaves the checkout -
+//              which is where most of the people who abandon a hosted page go.
+//              Needs the Square Application ID as well as the access token.
+export type SquareCardEntry = 'hosted' | 'on-page'
+
 export type SquareSettings = {
   enabled: boolean
   paymentDescription: string
   environment: SquareEnvironment
+  cardEntry: SquareCardEntry
 }
 
 // The fallback for a site that has never picked an environment on the settings
@@ -34,10 +49,18 @@ function toEnvironment(stored: unknown): SquareEnvironment {
   return stored === 'production' || stored === 'sandbox' ? stored : environmentFromEnvVar()
 }
 
+// Anything unrecognised reads as 'hosted' - the mode that needs no extra
+// credentials and therefore cannot be the wrong guess for a shop that has never
+// chosen. See the column comment in migrations/003_card_entry.sql.
+function toCardEntry(stored: unknown): SquareCardEntry {
+  return stored === 'on-page' ? 'on-page' : 'hosted'
+}
+
 const FALLBACK: SquareSettings = {
   enabled: false,
   paymentDescription: '',
   environment: 'sandbox',
+  cardEntry: 'hosted',
 }
 
 export async function getSquareSettings(): Promise<SquareSettings> {
@@ -50,6 +73,7 @@ export async function getSquareSettings(): Promise<SquareSettings> {
     enabled: r.enabled as boolean,
     paymentDescription: (r.payment_description as string | null) ?? '',
     environment: toEnvironment(r.environment),
+    cardEntry: toCardEntry(r.card_entry),
   }
 }
 
@@ -62,12 +86,13 @@ export async function updateSquareSettings(input: Partial<SquareSettings>): Prom
   const current = await getSquareSettings()
   const merged = { ...current, ...input }
   await prisma.$executeRaw`
-    INSERT INTO "sqp_settings" ("id", "enabled", "payment_description", "environment", "updated_at")
-    VALUES ('singleton', ${merged.enabled}, ${merged.paymentDescription}, ${merged.environment}, CURRENT_TIMESTAMP)
+    INSERT INTO "sqp_settings" ("id", "enabled", "payment_description", "environment", "card_entry", "updated_at")
+    VALUES ('singleton', ${merged.enabled}, ${merged.paymentDescription}, ${merged.environment}, ${merged.cardEntry}, CURRENT_TIMESTAMP)
     ON CONFLICT ("id") DO UPDATE SET
       "enabled" = ${merged.enabled},
       "payment_description" = ${merged.paymentDescription},
       "environment" = ${merged.environment},
+      "card_entry" = ${merged.cardEntry},
       "updated_at" = CURRENT_TIMESTAMP
   `
   return getSquareSettings()

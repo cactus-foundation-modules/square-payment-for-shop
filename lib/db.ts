@@ -27,10 +27,12 @@ function mapRow(r: Record<string, unknown>): SqpPayment {
   }
 }
 
+// `paymentLinkId` is null for on-page card entry: there is no hosted page to
+// link to, only the Square order the payment will be made against.
 export async function createSqpPayment(input: {
   orderId: string
   orderNumber: string
-  paymentLinkId: string
+  paymentLinkId?: string | null
   squareOrderId: string
   amount: number
   currency: string
@@ -42,7 +44,7 @@ export async function createSqpPayment(input: {
       "id", "order_id", "order_number", "payment_link_id", "square_order_id",
       "status", "amount", "currency", "created_at", "updated_at"
     ) VALUES (
-      ${id}, ${input.orderId}, ${input.orderNumber}, ${input.paymentLinkId}, ${input.squareOrderId},
+      ${id}, ${input.orderId}, ${input.orderNumber}, ${input.paymentLinkId ?? null}, ${input.squareOrderId},
       ${input.status ?? 'PENDING'}, ${input.amount}, ${input.currency}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `

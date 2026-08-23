@@ -27,7 +27,7 @@ const ENVIRONMENTS: Array<{ id: Environment; label: string; hint: string }> = [
 ]
 
 type FieldDef = {
-  field: 'accessToken' | 'locationId' | 'webhookSignatureKey'
+  field: 'accessToken' | 'applicationId' | 'locationId' | 'webhookSignatureKey'
   label: string
   placeholder: string
   secret: boolean
@@ -41,7 +41,15 @@ const FIELDS: FieldDef[] = [
     label: 'Access token',
     placeholder: 'EAAA…',
     secret: true,
-    help: 'Square developer dashboard → your app → Credentials. The Application ID on that same page is not needed here.',
+    help: 'Square developer dashboard → your app → Credentials.',
+  },
+  {
+    field: 'applicationId',
+    label: 'Application ID',
+    placeholder: 'sq0idp-…',
+    secret: false,
+    optional: true,
+    help: 'On the same page as the access token. Only needed if you take the card on your own checkout - the Square page does not use it.',
   },
   {
     field: 'locationId',
@@ -61,22 +69,36 @@ const FIELDS: FieldDef[] = [
 ]
 
 // Must match squareEnvVarNames() in lib/env.ts.
+const ENV_VAR_SUFFIX: Record<FieldDef['field'], string> = {
+  accessToken: 'ACCESS_TOKEN',
+  applicationId: 'APPLICATION_ID',
+  locationId: 'LOCATION_ID',
+  webhookSignatureKey: 'WEBHOOK_SIGNATURE_KEY',
+}
+
 function envVarName(environment: Environment, field: FieldDef['field']): string {
   const prefix = environment === 'sandbox' ? 'SQUARE_SANDBOX_' : 'SQUARE_'
-  const suffix =
-    field === 'accessToken' ? 'ACCESS_TOKEN' : field === 'locationId' ? 'LOCATION_ID' : 'WEBHOOK_SIGNATURE_KEY'
-  return `${prefix}${suffix}`
+  return `${prefix}${ENV_VAR_SUFFIX[field]}`
 }
 
 type Status = {
   configured: boolean
   connected?: boolean
   environment: string
+  cardEntry?: CardEntry
   webhookConfigured?: boolean
+  applicationIdSet?: boolean
   error?: string
 }
 
-type Settings = { enabled: boolean; paymentDescription: string; environment: Environment }
+type CardEntry = 'hosted' | 'on-page'
+
+type Settings = {
+  enabled: boolean
+  paymentDescription: string
+  environment: Environment
+  cardEntry: CardEntry
+}
 
 type SqLocation = { id: string; name: string; status: string; currency: string | null }
 
@@ -219,7 +241,11 @@ export function SquareSettingsTab() {
     setSavedSettings(false)
     setSettingsError('')
     try {
-      await patchSettings(next)
+      const saved = await patchSettings(next)
+      // Whether Square is "connected" is a different question in the two modes -
+      // on-page needs the Application ID as well - so the panel above has to be
+      // asked again rather than left showing the answer to the old one.
+      if (saved && saved.cardEntry !== settings?.cardEntry) await load()
       setSavedSettings(true)
     } catch (err) {
       setSettingsError(err instanceof Error ? err.message : 'Failed to save')
@@ -366,10 +392,11 @@ export function SquareSettingsTab() {
       <div className="card">
         <h2 className="card-title">Square</h2>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-4)' }}>
-          Take card payments on Square&apos;s hosted checkout page - card details never touch this
-          site. Sandbox and production have their own credentials, so each gets its own box below;
-          fill in whichever you are using, pick which one the shop should use, then turn the method
-          on. Credentials come from the{' '}
+          Take card payments through Square - on your own checkout or on Square&apos;s page,
+          whichever you prefer. Card details never touch this site either way. Sandbox and
+          production have their own credentials, so each gets its own box below; fill in whichever
+          you are using, pick which one the shop should use, then turn the method on. Credentials
+          come from the{' '}
           <a href="https://developer.squareup.com/apps" target="_blank" rel="noreferrer">
             Square developer dashboard
           </a>
@@ -382,7 +409,9 @@ export function SquareSettingsTab() {
         {status && (
           !status.configured ? (
             <div className="alert alert-warning">
-              Not connected yet - add the access token and location ID for <strong>{status.environment}</strong> below.
+              Not connected yet - add the access token and location ID
+              {status.cardEntry === 'on-page' && !status.applicationIdSet ? ' and Application ID' : ''} for{' '}
+              <strong>{status.environment}</strong> below.
             </div>
           ) : status.connected ? (
             <div className="alert alert-success">
@@ -428,9 +457,10 @@ export function SquareSettingsTab() {
         {localMode ? (
           <div className="alert alert-warning">
             Local development mode: set the credentials for the environment chosen above (
-            <code>SQUARE_ACCESS_TOKEN</code> and <code>SQUARE_LOCATION_ID</code>, or{' '}
-            <code>SQUARE_SANDBOX_ACCESS_TOKEN</code> and <code>SQUARE_SANDBOX_LOCATION_ID</code>) in{' '}
-            <code>.env.local</code> and restart the dev server.
+            <code>SQUARE_ACCESS_TOKEN</code>, <code>SQUARE_LOCATION_ID</code> and, for card entry on
+            your own checkout, <code>SQUARE_APPLICATION_ID</code> - or their{' '}
+            <code>SQUARE_SANDBOX_</code> twins) in <code>.env.local</code> and restart the dev
+            server.
           </div>
         ) : (
           <>
@@ -478,11 +508,36 @@ export function SquareSettingsTab() {
             </label>
 
             <div className="field">
+              <label htmlFor="sqp-card-entry">Where the card is typed</label>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
+                Either way the card goes straight to Square in Square&apos;s own secure fields and
+                never touches this site. The difference is whether the shopper leaves your checkout
+                to do it - and a good few who leave never come back.
+              </p>
+              <select
+                id="sqp-card-entry"
+                value={settings.cardEntry}
+                disabled={savingSettings}
+                onChange={(e) => saveSettings({ ...settings, cardEntry: e.target.value === 'on-page' ? 'on-page' : 'hosted' })}
+              >
+                <option value="on-page">On your own checkout (recommended)</option>
+                <option value="hosted">On Square&apos;s own page</option>
+              </select>
+              {settings.cardEntry === 'on-page' && status && !status.applicationIdSet && (
+                <div className="alert alert-warning" style={{ marginTop: 'var(--space-2)' }}>
+                  No Application ID for <strong>{status.environment}</strong> yet, and the card form
+                  cannot be drawn without one - so this payment method will not be offered at
+                  checkout until you add it above.
+                </div>
+              )}
+            </div>
+
+            <div className="field">
               <label htmlFor="sqp-description">Payment description</label>
               <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
-                What this payment method is called at your checkout and on your orders, and what the
-                shopper sees on the Square page (with the order number added). Leave blank for
-                &ldquo;Card payment (Square)&rdquo;.
+                What this payment method is called at your checkout and on your orders, and what
+                the shopper sees on their Square receipt (with the order number added). Leave blank
+                for &ldquo;Card payment (Square)&rdquo;.
               </p>
               <input
                 id="sqp-description"

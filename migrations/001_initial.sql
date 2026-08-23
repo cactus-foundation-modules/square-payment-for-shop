@@ -10,15 +10,18 @@ CREATE TABLE IF NOT EXISTS "sqp_settings" (
     "enabled" BOOLEAN NOT NULL DEFAULT false,
     "payment_description" TEXT NOT NULL DEFAULT '',
     "environment" TEXT,
+    "card_entry" TEXT NOT NULL DEFAULT 'hosted',
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "sqp_settings_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "sqp_settings_singleton" CHECK ("id" = 'singleton'),
-    CONSTRAINT "sqp_settings_environment_check" CHECK ("environment" IS NULL OR "environment" IN ('sandbox', 'production'))
+    CONSTRAINT "sqp_settings_environment_check" CHECK ("environment" IS NULL OR "environment" IN ('sandbox', 'production')),
+    CONSTRAINT "sqp_settings_card_entry_check" CHECK ("card_entry" IN ('hosted', 'on-page'))
 );
 INSERT INTO "sqp_settings" ("id") VALUES ('singleton') ON CONFLICT ("id") DO NOTHING;
 
--- One row per checkout attempt: maps a shop order to its Square payment link,
--- the Square order behind it, and (once the shopper pays) the resulting payment.
+-- One row per checkout attempt: maps a shop order to its Square payment link
+-- (hosted card entry only - nothing is linked to when the card is typed on this
+-- site), the Square order behind it, and (once the shopper pays) the payment.
 CREATE TABLE IF NOT EXISTS "sqp_payments" (
     "id" TEXT NOT NULL,
     "order_id" TEXT NOT NULL,

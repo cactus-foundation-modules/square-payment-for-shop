@@ -1,6 +1,7 @@
 // GET/PATCH /api/m/square-payment-for-shop/admin/settings
-// Non-secret module settings: the on/off toggle, the payment description, and
-// which Square environment the shop is taking payments in.
+// Non-secret module settings: the on/off toggle, the payment description, which
+// Square environment the shop is taking payments in, and where the shopper types
+// their card.
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireShopUser } from '@/modules/shop/lib/access'
@@ -18,6 +19,9 @@ const PatchBody = z.object({
   // Stored rather than an env var, so switching between test and live takes
   // effect on the next request instead of the next deployment.
   environment: z.enum(['sandbox', 'production']).optional(),
+  // Stored for the same reason as the environment: a mode the owner can change
+  // and see take effect, rather than one that waits for the next deployment.
+  cardEntry: z.enum(['hosted', 'on-page']).optional(),
 })
 
 export async function PATCH(request: NextRequest) {

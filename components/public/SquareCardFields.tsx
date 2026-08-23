@@ -92,16 +92,21 @@ function cardStyle(): Record<string, Record<string, string>> {
   const surface = readToken('--color-surface', '#ffffff')
   const danger = readToken('--color-danger', '#c0392b')
   const accent = readToken('--color-primary', text)
+  // Square validates this object and REJECTS the whole card build if a selector
+  // is given a property it does not allow there - the shopper is left looking at
+  // "Loading the card form..." for ever. `.input-container` takes border
+  // properties only; backgroundColor belongs on `input`, and putting it on the
+  // container is what broke the form in 0.1.14. Keep to what Square documents:
+  //   .input-container            borderColor, borderRadius, borderWidth
+  //   .input-container.is-focus   borderColor
+  //   .input-container.is-error   borderColor
+  //   input                       backgroundColor, color, fontFamily, fontSize, fontWeight
+  //   input::placeholder          color
+  //   .message-text / .message-icon (and their .is-error twins)  color
   return {
-    // backgroundColor belongs on the CONTAINER, not only on the inputs. Square
-    // paints the box white by default, and styling just the inputs leaves that
-    // white showing through everywhere an input does not reach - the gaps
-    // between the rows, the padding, and any field Square draws that the plain
-    // `input` selector does not cover. On a dark checkout the result is a white
-    // slab with one or two dark cells punched into it.
-    '.input-container': { backgroundColor: surface, borderColor: border, borderRadius: '6px' },
-    '.input-container.is-focus': { backgroundColor: surface, borderColor: accent },
-    '.input-container.is-error': { backgroundColor: surface, borderColor: danger },
+    '.input-container': { borderColor: border, borderRadius: '6px' },
+    '.input-container.is-focus': { borderColor: accent },
+    '.input-container.is-error': { borderColor: danger },
     input: { color: text, backgroundColor: surface, fontSize: '16px' },
     'input::placeholder': { color: muted },
     '.message-text': { color: muted },
@@ -206,28 +211,38 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
 
       const payments = window.Square.payments(applicationId, locationId)
 
-      // The postcode is supplied AT CREATION, which is what hides Square's own
-      // postal-code box - the shopper typed it two steps up this very page and
-      // being asked again is both a nuisance and, as it turns out, ugly: that
-      // field is styled apart from the rest of the card form and kept a white
-      // cell on a dark checkout while its neighbours went dark around it.
-      // Setting it after attach with configure() does not hide it.
+      // Built by falling back rather than in one go, and this is not belt and
+      // braces - it is the lesson from having shipped a card form nobody could
+      // use. Square VALIDATES the options and rejects the whole build over one
+      // property it does not recognise, so a single wrong line in cardStyle()
+      // is the difference between a checkout that looks slightly plain and a
+      // checkout that shows "Loading the card form..." for ever.
       //
-      // Wrapped because an option this build of the SDK does not know would
-      // otherwise take the whole card form down with it, and a shopper who has
-      // to type their postcode twice is a far better outcome than one who
-      // cannot pay at all.
+      // Nothing below the first attempt is essential to taking a payment. The
+      // postcode is a courtesy (the shopper typed it two steps up this page,
+      // and supplying it AT CREATION is the only thing that hides Square's own
+      // postcode box - configure() after attach does not). The style is
+      // cosmetic. So each is dropped in turn, worst case leaving Square's
+      // default card form, which works.
       const postcode = payerRef.current.address.postcode.trim()
-      const created = await (async () => {
-        if (postcode) {
-          try {
-            return await payments.card({ style: cardStyle(), postalCode: postcode })
-          } catch {
-            // Fall through and build a plain one.
-          }
+      const attempts: Array<Record<string, unknown>> = [
+        { style: cardStyle(), ...(postcode ? { postalCode: postcode } : {}) },
+        ...(postcode ? [{ postalCode: postcode }] : []),
+        { style: cardStyle() },
+        {},
+      ]
+      let created: SqCard | null = null
+      let lastError: unknown = null
+      for (const options of attempts) {
+        try {
+          created = await payments.card(options)
+          break
+        } catch (err) {
+          lastError = err
+          console.warn('[square-payment] card options rejected, retrying with fewer', err)
         }
-        return payments.card({ style: cardStyle() })
-      })()
+      }
+      if (!created) throw lastError instanceof Error ? lastError : new Error('The card payment form could not be built.')
       // The shopper is back on the checkout by the time this resolves only if
       // they have not switched method meanwhile. Tearing the fresh card down
       // rather than attaching it keeps a dead form off a page that has moved on.
@@ -270,7 +285,9 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
   // colours it was built with and a dark checkout gets a white card form.
   useEffect(() => {
     const observer = new MutationObserver(() => {
-      void cardRef.current?.configure?.({ style: cardStyle() })
+      // Cosmetic, and allowed to fail: a rejected style must never be the reason
+      // somebody cannot pay.
+      cardRef.current?.configure?.({ style: cardStyle() })?.catch(() => {})
     })
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
     return () => observer.disconnect()
@@ -283,7 +300,7 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
   const postcode = payer.address.postcode.trim()
   useEffect(() => {
     if (!ready || !postcode) return
-    void cardRef.current?.configure?.({ postalCode: postcode })
+    cardRef.current?.configure?.({ postalCode: postcode })?.catch(() => {})
   }, [ready, postcode])
 
   return (

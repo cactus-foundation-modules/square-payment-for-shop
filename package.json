@@ -1,6 +1,6 @@
 {
   "name": "cactus-module-square-payment-for-shop",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Square Payments for the Cactus Shop",
   "license": "MIT",
   "private": true

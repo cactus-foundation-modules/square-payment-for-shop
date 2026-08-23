@@ -87,8 +87,18 @@ type Status = {
   environment: string
   cardEntry?: CardEntry
   webhookConfigured?: boolean
+  // One flag per credential, as the RUNNING server sees them - which is not the
+  // same question as whether they have been saved. See missingCredentials.
+  accessTokenSet?: boolean
+  locationIdSet?: boolean
   applicationIdSet?: boolean
   error?: string
+}
+
+// Joins a list into the sentence an actual person would say.
+function listWords(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
 }
 
 type CardEntry = 'hosted' | 'on-page'
@@ -275,6 +285,38 @@ export function SquareSettingsTab() {
     }
   }
 
+  // Which credentials the running server still cannot see, split by WHY.
+  //
+  // "Saved" and "working" are two different things here and the gap between
+  // them is a deployment: a credential written through /api/admin/env goes to
+  // the hosting project, and the running server carries on with the old
+  // environment until the site next deploys. So a box can perfectly well show
+  // "(set)" - that list comes from the hosting project - while the status
+  // panel, which reads what the server can actually see, still says no.
+  //
+  // Saying "add the access token and location ID and Application ID" at that
+  // moment is wrong twice over: two of them were added long ago, and the third
+  // was added a minute before. What is wanted is a deployment.
+  function missingCredentials(): { pending: string[]; absent: string[] } {
+    const env = (status?.environment === 'production' ? 'production' : 'sandbox') as Environment
+    const wanted: Array<{ field: FieldDef['field']; label: string; seen: boolean }> = [
+      { field: 'accessToken', label: 'access token', seen: status?.accessTokenSet !== false },
+      { field: 'locationId', label: 'location ID', seen: status?.locationIdSet !== false },
+    ]
+    // Only on-page card entry needs it; on the hosted page it is not missing,
+    // it is simply not used.
+    if (status?.cardEntry === 'on-page') {
+      wanted.push({ field: 'applicationId', label: 'Application ID', seen: status?.applicationIdSet !== false })
+    }
+    const pending: string[] = []
+    const absent: string[] = []
+    for (const c of wanted) {
+      if (c.seen) continue
+      ;(setVars[envVarName(env, c.field)] ? pending : absent).push(c.label)
+    }
+    return { pending, absent }
+  }
+
   function renderCredentials(env: Environment) {
     const meta = ENVIRONMENTS.find((e) => e.id === env)!
     const isLive = environment === env
@@ -408,11 +450,34 @@ export function SquareSettingsTab() {
 
         {status && (
           !status.configured ? (
-            <div className="alert alert-warning">
-              Not connected yet - add the access token and location ID
-              {status.cardEntry === 'on-page' && !status.applicationIdSet ? ' and Application ID' : ''} for{' '}
-              <strong>{status.environment}</strong> below.
-            </div>
+            (() => {
+              const { pending, absent } = missingCredentials()
+              return (
+                <>
+                  {pending.length > 0 && (
+                    <div className="alert alert-warning">
+                      Saved, but not live yet. The {listWords(pending)} for{' '}
+                      <strong>{status.environment}</strong>{' '}
+                      {pending.length === 1 ? 'is' : 'are'} stored with your hosting and will start
+                      working after the site&apos;s next deployment - credentials only reach the
+                      running site when it redeploys. Deploy from the notification on your dashboard,
+                      then come back to this page.
+                    </div>
+                  )}
+                  {absent.length > 0 && (
+                    <div className="alert alert-warning">
+                      Not connected yet - add the {listWords(absent)} for{' '}
+                      <strong>{status.environment}</strong> below.
+                    </div>
+                  )}
+                  {pending.length === 0 && absent.length === 0 && (
+                    <div className="alert alert-warning">
+                      Not connected yet - check the credentials for <strong>{status.environment}</strong> below.
+                    </div>
+                  )}
+                </>
+              )
+            })()
           ) : status.connected ? (
             <div className="alert alert-success">
               Connected to Square (<strong>{status.environment}</strong>).

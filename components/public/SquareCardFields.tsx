@@ -75,28 +75,30 @@ function loadSquareSdk(environment: string): Promise<void> {
   return sdkPromise
 }
 
-function readToken(name: string, fallback: string): string {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-  return value || fallback
-}
+// The card fields live inside Square's own iframes - several of them, one per
+// sensitive field - and neither the site's stylesheet nor its CSS variables
+// reach in there. Square wants concrete values, and honours them unevenly: on a
+// dark checkout the card, expiry and CVV frames took our background while the
+// postcode frame kept Square's white, and since our text colour DID apply
+// everywhere, the shopper's postcode ended up white on white and invisible.
+//
+// So the box is deliberately LIGHT, in every theme, and the panel below is
+// painted to match so there is no seam. Three attempts at persuading Square to
+// go dark produced two broken checkouts and one unreadable field; a white card
+// panel on a dark page is a normal thing that reads as a payment surface, and -
+// far more to the point - it cannot render text invisibly, because it does not
+// depend on Square honouring anything. Square's own defaults are dark-on-white
+// too, so even a style object it rejects outright lands somewhere legible.
+const PANEL_BG = '#ffffff'
+const PANEL_TEXT = '#1a1a1a'
+const PANEL_MUTED = '#6b6b6b'
+const PANEL_BORDER = '#d5d5d5'
+const PANEL_DANGER = '#c0392b'
 
-// The card fields live inside Square's iframe, so the site's stylesheet cannot
-// reach them and CSS variables mean nothing in there - Square wants concrete
-// values. They are read off the page's own tokens rather than written as hex, so
-// the box matches the inputs above it and follows the site into dark mode
-// instead of sitting there as a white rectangle on a dark checkout.
 function cardStyle(): Record<string, Record<string, string>> {
-  const text = readToken('--color-text', '#111111')
-  const muted = readToken('--color-text-muted', '#666666')
-  const border = readToken('--color-border', '#cccccc')
-  const surface = readToken('--color-surface', '#ffffff')
-  const danger = readToken('--color-danger', '#c0392b')
-  const accent = readToken('--color-primary', text)
   // Square validates this object and REJECTS the whole card build if a selector
-  // is given a property it does not allow there - the shopper is left looking at
-  // "Loading the card form..." for ever. `.input-container` takes border
-  // properties only; backgroundColor belongs on `input`, and putting it on the
-  // container is what broke the form in 0.1.14. Keep to what Square documents:
+  // is given a property it does not allow there - the shopper is left looking
+  // at "Loading the card form..." for ever. Keep to what Square documents:
   //   .input-container            borderColor, borderRadius, borderWidth
   //   .input-container.is-focus   borderColor
   //   .input-container.is-error   borderColor
@@ -104,15 +106,15 @@ function cardStyle(): Record<string, Record<string, string>> {
   //   input::placeholder          color
   //   .message-text / .message-icon (and their .is-error twins)  color
   return {
-    '.input-container': { borderColor: border, borderRadius: '6px' },
-    '.input-container.is-focus': { borderColor: accent },
-    '.input-container.is-error': { borderColor: danger },
-    input: { color: text, backgroundColor: surface, fontSize: '16px' },
-    'input::placeholder': { color: muted },
-    '.message-text': { color: muted },
-    '.message-icon': { color: muted },
-    '.message-text.is-error': { color: danger },
-    '.message-icon.is-error': { color: danger },
+    '.input-container': { borderColor: PANEL_BORDER, borderRadius: '6px' },
+    '.input-container.is-focus': { borderColor: PANEL_TEXT },
+    '.input-container.is-error': { borderColor: PANEL_DANGER },
+    input: { color: PANEL_TEXT, backgroundColor: PANEL_BG, fontSize: '16px' },
+    'input::placeholder': { color: PANEL_MUTED },
+    '.message-text': { color: PANEL_MUTED },
+    '.message-icon': { color: PANEL_MUTED },
+    '.message-text.is-error': { color: PANEL_DANGER },
+    '.message-icon.is-error': { color: PANEL_DANGER },
   }
 }
 
@@ -153,10 +155,24 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
   // Tokenises the card and asks the buyer's bank to verify them, then hands both
   // back for the server to charge. Everything it throws is written for the
   // shopper, because that is where the message ends up.
-  const submit = useCallback(async (): Promise<unknown> => {
+  const submit = useCallback(async (callConfig: Record<string, unknown>): Promise<unknown> => {
     const card = cardRef.current
     const payments = paymentsRef.current
     if (!card || !payments) throw new Error('The card payment form is not ready yet.')
+
+    // Taken from what shop hands over at call time, NOT from the props this
+    // component last rendered with. "Place order" creates the payment intent
+    // and calls this in the same breath, without waiting for React to
+    // re-render, so the closure below is routinely the one from before the
+    // intent existed - and its amount is an empty string. Square answers a
+    // verification request with no amount with "One or more of the arguments
+    // needed are missing or invalid", which is a baffling thing to show
+    // somebody who typed their card correctly.
+    const money = {
+      amount: stringField(callConfig, 'amount') || amount,
+      currency: stringField(callConfig, 'currency') || currency,
+    }
+    if (!money.amount || !money.currency) throw new Error('This order is not ready to be paid for yet. Please try again in a moment.')
 
     const result = await card.tokenize()
     if (result.status !== 'OK' || !result.token) {
@@ -171,8 +187,8 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
     let verificationToken: string | undefined
     try {
       const verification = await payments.verifyBuyer(result.token, {
-        amount,
-        currencyCode: currency,
+        amount: money.amount,
+        currencyCode: money.currency,
         intent: 'CHARGE',
         billingContact: {
           givenName: payerRef.current.address.firstName,
@@ -225,9 +241,10 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
       // cosmetic. So each is dropped in turn, worst case leaving Square's
       // default card form, which works.
       const postcode = payerRef.current.address.postcode.trim()
+      // Style first and always: a rejected postalCode must never cost us the
+      // styling, because the styling is what keeps the fields legible.
       const attempts: Array<Record<string, unknown>> = [
-        { style: cardStyle(), ...(postcode ? { postalCode: postcode } : {}) },
-        ...(postcode ? [{ postalCode: postcode }] : []),
+        ...(postcode ? [{ style: cardStyle(), postalCode: postcode }] : []),
         { style: cardStyle() },
         {},
       ]
@@ -280,18 +297,11 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
     return () => registerRef.current(null)
   }, [submit])
 
-  // Follows the site into dark mode. The fields are Square's iframe, so the
-  // site's own stylesheet never reaches them - without this the box keeps the
-  // colours it was built with and a dark checkout gets a white card form.
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      // Cosmetic, and allowed to fail: a rejected style must never be the reason
-      // somebody cannot pay.
-      cardRef.current?.configure?.({ style: cardStyle() })?.catch(() => {})
-    })
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
-    return () => observer.disconnect()
-  }, [])
+  // No theme observer any more. The card panel is light in both themes on
+  // purpose (see cardStyle), so there is nothing for a theme change to update -
+  // and the observer was re-sending a style object on every toggle, which is one
+  // more chance for Square to reject one and leave the form in a state nobody
+  // asked for.
 
   // A postcode typed AFTER the card form was built. The form is drawn the
   // moment the shopper picks the method, which can be before they have finished
@@ -305,13 +315,26 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
 
   return (
     <div style={{ display: 'grid', gap: '0.5rem' }}>
-      <div ref={containerRef} />
+      {/* Painted to match the card fields inside it (see cardStyle), so the
+          panel reads as one deliberate white payment surface rather than as a
+          dark box with a white rectangle sitting in it. */}
+      <div
+        style={{
+          background: PANEL_BG,
+          border: `1px solid ${PANEL_BORDER}`,
+          borderRadius: 8,
+          padding: '0.75rem',
+        }}
+      >
+        <div ref={containerRef} />
+      </div>
       {ready ? (
         // Said here rather than by the checkout, because only this component
         // knows a card is what is being asked for - shop draws whatever a
         // payment module puts on the page and cannot promise anything about it.
         // Reassurance also belongs at the point of anxiety, which is these
-        // fields, not a footer nobody reads.
+        // fields, not a footer nobody reads. This line sits OUTSIDE the white
+        // panel, so it keeps the page's own colours.
         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem', margin: 0 }}>
           🔒 Card details go straight to Square, encrypted - they never touch this site.
         </p>

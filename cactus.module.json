@@ -1,13 +1,13 @@
 {
   "name": "square-payment-for-shop",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "tablePrefix": "sqp_",
   "description": "Square card payments for the Shop: taken in Square's own card fields on your own checkout, or on Square's hosted page, with refunds and webhook confirmation. No card data ever touches the site.",
-  "requiresCoreVersion": "0.5.1241",
+  "requiresCoreVersion": "0.5.1242",
   "requiresModules": [
     {
       "name": "shop",
-      "minVersion": "0.1.307"
+      "minVersion": "0.1.308"
     }
   ],
   "requiredEnvVars": [
@@ -100,11 +100,7 @@
       "https://sandbox.web.squarecdn.com"
     ],
     "frame": [
-      "https://*.squarecdn.com",
-      "https://web.squarecdn.com",
-      "https://sandbox.web.squarecdn.com",
-      "https://connect.squareup.com",
-      "https://connect.squareupsandbox.com"
+      "*"
     ],
     "connect": [
       "https://*.squarecdn.com",

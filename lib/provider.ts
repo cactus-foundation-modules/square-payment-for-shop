@@ -21,6 +21,7 @@ import { getSquareCredentials, isSquareConfigured } from '@/modules/square-payme
 import { getSquareSettings } from '@/modules/square-payment-for-shop/lib/settings'
 import * as sq from '@/modules/square-payment-for-shop/lib/square'
 import { createSqpPayment, getSqpPaymentByOrderId, updateSqpPayment } from '@/modules/square-payment-for-shop/lib/db'
+import { GENERIC_DECLINE, isShopSideFailure, shopperMessageForDecline } from '@/modules/square-payment-for-shop/lib/decline'
 import { squareLogo } from '@/modules/square-payment-for-shop/lib/logo'
 
 const METHOD_ID = 'SQUARE'
@@ -180,7 +181,11 @@ export function readOnPagePayload(payload: unknown): OnPagePayload | null {
 export function resultFromPayment(payment: sq.SqPayment, order: ShpOrderDraft): ShpPaymentResult {
   if (payment.amount !== toMinorUnits(order.amount)) return { success: false, error: 'Payment amount does not match this order.' }
   if (payment.currency.toUpperCase() !== order.currency.toUpperCase()) return { success: false, error: 'Payment currency does not match this order.' }
-  if (sq.isPaymentFailed(payment.status)) return { success: false, error: 'The card payment did not go through.' }
+  // A payment that came back already failed, rather than one Square refused
+  // just now - the hosted checkout path, and the on-page retry that finds a
+  // failed payment sitting on the Square order. There is no error code to map
+  // here, so it gets the wording every decline can honestly carry.
+  if (sq.isPaymentFailed(payment.status)) return { success: false, error: GENERIC_DECLINE }
   return { success: true, pending: !sq.isPaymentCollected(payment.status), providerReference: payment.id }
 }
 
@@ -218,13 +223,27 @@ async function chargeOnPage(order: ShpOrderDraft, payload: unknown): Promise<Shp
       idempotencyKey: paymentIdempotencyKey(order.orderId, parsed.sourceId),
     })
   } catch (err) {
-    // Square's own wording for a declined or unusable card is written for the
-    // person holding it ("Card declined.", "The card expiration date is
-    // invalid."), so it is passed through rather than flattened into a house
-    // error that tells them nothing. Nothing is marked failed here: the shop's
-    // confirm route leaves the draft where it is, so trying again keeps the
-    // same order number instead of burning a fresh one per attempt.
-    return { success: false, error: err instanceof Error ? err.message : 'The card payment did not go through.' }
+    // Square's own wording is NOT passed through - that was the mistake this
+    // replaces. `detail` is written for whoever reads the API logs, so a card
+    // with no money on it reached the shopper as "Authorization error:
+    // 'CARDHOLDER_INSUFFICIENT_PERMISSIONS'", which reads as a broken site
+    // rather than a declined card. The code is mapped instead; see lib/decline.
+    //
+    // Logged with the code, because that is the part worth having later and the
+    // part the shopper never sees. A declined card is an ordinary event on any
+    // shop and gets a warning; something the shop itself has got wrong - a
+    // revoked token, the wrong location - is an error, because the owner needs
+    // to know.
+    const detail = err instanceof Error ? err.message : String(err)
+    if (isShopSideFailure(err)) {
+      console.error(`[square-payment] payment for order ${order.orderNumber} failed on our side: ${detail}`)
+    } else {
+      console.warn(`[square-payment] card declined for order ${order.orderNumber}: ${detail}`)
+    }
+    // Nothing is marked failed here: the shop's confirm route leaves the draft
+    // where it is, so trying again keeps the same order number instead of
+    // burning a fresh one per attempt.
+    return { success: false, error: shopperMessageForDecline(err) }
   }
 
   await updateSqpPayment(row.id, { paymentId: payment.id, status: payment.status })

@@ -6,6 +6,28 @@ import { getSquareEnvironment } from '@/modules/square-payment-for-shop/lib/sett
 
 const SQUARE_VERSION = '2024-01-18'
 
+/** A Square API refusal, carrying the machine-readable parts of it.
+ *
+ *  `message` stays Square's `detail` so every existing caller (the locations
+ *  lookup, the connection check) reads exactly as it did. What is new is `code`
+ *  and `category`, because `detail` is NOT written for a shopper: a card with no
+ *  money on it comes back as "Authorization error:
+ *  'CARDHOLDER_INSUFFICIENT_PERMISSIONS'", which tells the person holding it
+ *  nothing at all and looks like the site is broken. See lib/decline.ts. */
+export class SquareApiError extends Error {
+  readonly code: string | null
+  readonly category: string | null
+  readonly status: number
+
+  constructor(input: { message: string; code?: string | null; category?: string | null; status: number }) {
+    super(input.message)
+    this.name = 'SquareApiError'
+    this.code = input.code ?? null
+    this.category = input.category ?? null
+    this.status = input.status
+  }
+}
+
 // Credentials supplied by the caller instead of read from the environment. The
 // settings tab uses this to look up locations for a token that has only just
 // been typed in - env vars are not readable until the next deployment, so
@@ -45,9 +67,15 @@ async function sqFetch<T>(path: string, init: SqFetchInit = {}): Promise<T> {
   })
 
   if (!res.ok) {
-    const detail = (await res.json().catch(() => null)) as { errors?: Array<{ detail?: string; code?: string }> } | null
-    const first = detail?.errors?.[0]
-    throw new Error(first?.detail ?? first?.code ?? `Square API error ${res.status}`)
+    const body = (await res.json().catch(() => null)) as
+      { errors?: Array<{ detail?: string; code?: string; category?: string }> } | null
+    const first = body?.errors?.[0]
+    throw new SquareApiError({
+      message: first?.detail ?? first?.code ?? `Square API error ${res.status}`,
+      code: first?.code ?? null,
+      category: first?.category ?? null,
+      status: res.status,
+    })
   }
   return (await res.json()) as T
 }

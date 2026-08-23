@@ -118,6 +118,23 @@ function cardStyle(): Record<string, Record<string, string>> {
   }
 }
 
+// Square's client-side errors are usually written for a person ("Card number is
+// not valid"), but not always - some come back as a bare code, or with one
+// quoted inside them. Either way a shopper should never be shown one, so
+// anything that reads like machine output is swapped for wording that does not.
+//
+// Same rule as the server side (see lib/decline.ts): say the true, useful,
+// general thing rather than the precise, unreadable one.
+function readableOrGeneric(message: unknown, fallback: string): string {
+  if (typeof message !== 'string') return fallback
+  const trimmed = message.trim()
+  if (!trimmed) return fallback
+  // A bare SCREAMING_SNAKE code, or a sentence with one quoted inside it.
+  if (/^[A-Z0-9_]+$/.test(trimmed)) return fallback
+  if (/'[A-Z0-9_]{4,}'/.test(trimmed)) return fallback
+  return trimmed
+}
+
 function stringField(config: Record<string, unknown>, key: string): string {
   const value = config[key]
   return typeof value === 'string' ? value : ''
@@ -177,7 +194,7 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
     const result = await card.tokenize()
     if (result.status !== 'OK' || !result.token) {
       const first = result.errors?.[0]
-      throw new Error(first?.message ?? first?.detail ?? 'Please check your card details and try again.')
+      throw new Error(readableOrGeneric(first?.message ?? first?.detail, 'Please check your card details and try again.'))
     }
 
     // Strong Customer Authentication. A UK or EEA card charged without this is
@@ -204,7 +221,10 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
       })
       verificationToken = verification?.token
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : 'Your bank could not verify this payment.')
+      throw new Error(readableOrGeneric(
+        err instanceof Error ? err.message : null,
+        'Your bank could not verify this payment. Please try again, or use another card.',
+      ))
     }
 
     return { sourceId: result.token, verificationToken }

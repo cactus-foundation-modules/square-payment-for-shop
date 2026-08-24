@@ -38,7 +38,23 @@ const BUTTON_RADIUS = 8
 // goes in a stylesheet of its own - and nothing about it is a colour of ours to
 // tokenise: the whole point of the control is that it looks like every other
 // Apple Pay button on every other site.
-const APPLE_PAY_CSS = `
+//
+// The second rule takes Google's hover tint off, so the two buttons behave the
+// same on a mouse. Google's hover is not a `:hover` rule at all - its script
+// toggles a `.hover` CLASS, styled `.gpay-button.black.hover{background-color:
+// rgb(60,64,67)}` - and Apple's button has no hover state to match it with,
+// because the system draws that control and offers no hook for one. So the
+// only way the pair can agree is Google's coming off.
+//
+// Two deliberate details. It is the background-COLOR longhand, never the
+// shorthand: the logo is a background IMAGE, and that is exactly how the
+// site's own button styling erased it (see this module's 0.1.20). And it is
+// scoped by the container's id, whose specificity already beats Google's two
+// classes - so no `!important`, and Google's `.focus` outline and `.active`
+// press tint are both left alone. The press state staying is the point rather
+// than an oversight: Apple's native button has one too, so keeping it is what
+// matching actually means.
+const WALLET_CSS = `
 .sqp-apple-pay-button {
   -webkit-appearance: -apple-pay-button;
   -apple-pay-button-type: buy;
@@ -49,6 +65,7 @@ const APPLE_PAY_CSS = `
   border-radius: ${BUTTON_RADIUS}px;
   cursor: pointer;
 }
+#${GOOGLE_PAY_ELEMENT_ID} .gpay-button.hover { background-color: #000; }
 `
 
 // What Square is asked to draw Google's button as. Chosen to match the Apple
@@ -288,7 +305,7 @@ export function SquareWalletButtons({ config, getPayer, amount, currency, disabl
       }}
       aria-hidden={anythingToShow ? undefined : true}
     >
-      <style>{APPLE_PAY_CSS}</style>
+      <style>{WALLET_CSS}</style>
       <div
         style={{
           display: 'grid',

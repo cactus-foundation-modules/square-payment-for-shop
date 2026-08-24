@@ -24,20 +24,77 @@ import { readableOrGeneric } from '@/modules/square-payment-for-shop/components/
 // postcode frame kept Square's white, and since our text colour DID apply
 // everywhere, the shopper's postcode ended up white on white and invisible.
 //
-// So the box is deliberately LIGHT, in every theme, and the panel below is
-// painted to match so there is no seam. Three attempts at persuading Square to
-// go dark produced two broken checkouts and one unreadable field; a white card
-// panel on a dark page is a normal thing that reads as a payment surface, and -
-// far more to the point - it cannot render text invisibly, because it does not
-// depend on Square honouring anything. Square's own defaults are dark-on-white
-// too, so even a style object it rejects outright lands somewhere legible.
-const PANEL_BG = '#ffffff'
-const PANEL_TEXT = '#1a1a1a'
-const PANEL_MUTED = '#6b6b6b'
-const PANEL_BORDER = '#d5d5d5'
-const PANEL_DANGER = '#c0392b'
+// That history is why the fallback ladder below always ends light: light
+// matches Square's own dark-on-white defaults, so even a style object Square
+// rejects outright lands somewhere legible. The dark palette itself is safe
+// again as of 2026-08-24, verified against the production SDK standalone: the
+// current UK card form draws no postcode frame at all (card, expiry and CVV
+// only, postalCode supplied or not), and every frame it does draw honours the
+// dark background and text together - the invisible-postcode failure cannot
+// recur without the postcode frame that caused it.
+//
+// The theme is read once, at card creation, and never re-sent: a live restyle
+// observer was tried and removed (one more chance for Square to reject a style
+// object mid-checkout), and tearing the card down to rebuild it in the other
+// palette would eat whatever digits the shopper had typed. A shopper who flips
+// theme mid-payment keeps a panel in the old theme's colours - self-consistent,
+// legible, and rare enough to be a fair trade.
+type PanelPalette = {
+  bg: string
+  text: string
+  muted: string
+  border: string
+  // Focus ring, deliberately its own colour rather than reusing text: Square
+  // thickens the border on focus, and full text colour at that width reads as
+  // a glaring outline on a dark panel rather than a highlight.
+  focus: string
+  danger: string
+}
 
-function cardStyle(): Record<string, Record<string, string>> {
+const LIGHT_PANEL: PanelPalette = {
+  bg: '#ffffff',
+  text: '#1a1a1a',
+  muted: '#6b6b6b',
+  border: '#d5d5d5',
+  focus: '#1a1a1a',
+  danger: '#c0392b',
+}
+
+// Deliberately neutral rather than sampled from the site's CSS variables:
+// Square validates colour values, and a site token that resolves to oklch() or
+// a colour-mix() is a rejected build and a checkout stuck on "Loading the card
+// form...". Fixed hex cannot do that.
+const DARK_PANEL: PanelPalette = {
+  bg: '#1c1c1e',
+  text: '#f2f2f2',
+  muted: '#a3a3a3',
+  border: '#3f3f42',
+  focus: '#8a8a90',
+  danger: '#e06c5f',
+}
+
+// Whether the page behind the card fields is dark. NOT the data-theme
+// attribute: a site whose brand palette is dark paints a dark checkout while
+// data-theme still says "light", and the question that decides the palette is
+// what colour actually surrounds the fields. So: walk up from the container to
+// the first element with an opaque background and measure it. The attribute is
+// only the tie-breaker when nothing opaque is found.
+function isDarkBackdrop(el: HTMLElement | null): boolean {
+  for (let node = el; node; node = node.parentElement) {
+    const bg = getComputedStyle(node).backgroundColor
+    // Computed backgroundColor comes back as rgb()/rgba() in every browser
+    // this runs in; anything else (unlikely) just moves on up the tree.
+    const m = bg.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,/\s]+([\d.]+))?\s*\)/)
+    if (!m) continue
+    const alpha = m[4] === undefined ? 1 : parseFloat(m[4])
+    if (alpha < 0.5) continue
+    const lum = (0.2126 * Number(m[1]) + 0.7152 * Number(m[2]) + 0.0722 * Number(m[3])) / 255
+    return lum < 0.5
+  }
+  return document.documentElement.getAttribute('data-theme') === 'dark'
+}
+
+function cardStyle(palette: PanelPalette): Record<string, Record<string, string>> {
   // Square validates this object and REJECTS the whole card build if a selector
   // is given a property it does not allow there - the shopper is left looking
   // at "Loading the card form..." for ever. Keep to what Square documents:
@@ -48,23 +105,30 @@ function cardStyle(): Record<string, Record<string, string>> {
   //   input::placeholder          color
   //   .message-text / .message-icon (and their .is-error twins)  color
   return {
-    '.input-container': { borderColor: PANEL_BORDER, borderRadius: '6px' },
-    '.input-container.is-focus': { borderColor: PANEL_TEXT },
-    '.input-container.is-error': { borderColor: PANEL_DANGER },
-    input: { color: PANEL_TEXT, backgroundColor: PANEL_BG, fontSize: '16px' },
-    'input::placeholder': { color: PANEL_MUTED },
-    '.message-text': { color: PANEL_MUTED },
-    '.message-icon': { color: PANEL_MUTED },
-    '.message-text.is-error': { color: PANEL_DANGER },
-    '.message-icon.is-error': { color: PANEL_DANGER },
+    '.input-container': { borderColor: palette.border, borderRadius: '6px', borderWidth: '1px' },
+    '.input-container.is-focus': { borderColor: palette.focus },
+    '.input-container.is-error': { borderColor: palette.danger },
+    input: { color: palette.text, backgroundColor: palette.bg, fontSize: '16px' },
+    'input::placeholder': { color: palette.muted },
+    '.message-text': { color: palette.muted },
+    '.message-icon': { color: palette.muted },
+    '.message-text.is-error': { color: palette.danger },
+    '.message-icon.is-error': { color: palette.danger },
   }
 }
 
 export function SquareCardFields({ config, payer, onError, registerSubmit }: ShopCheckoutPaymentFieldsProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  // The component's outermost element - where the backdrop measurement starts
+  // (see isDarkBackdrop; everything inside it is this component's own paint).
+  const outerRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<SqCard | null>(null)
   const paymentsRef = useRef<SqPayments | null>(null)
   const [ready, setReady] = useState(false)
+  // Whatever palette the card was actually built with - the panel behind the
+  // iframes is painted from this, so the two can never disagree even when the
+  // build fell back to a plainer attempt than the theme asked for.
+  const [panel, setPanel] = useState<PanelPalette>(LIGHT_PANEL)
 
   // Held in refs so the effects below can stay keyed on the things that actually
   // change the card fields. All three props are new values on every render of
@@ -181,18 +245,27 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
       // cosmetic. So each is dropped in turn, worst case leaving Square's
       // default card form, which works.
       const postcode = payerRef.current.address.postcode.trim()
+      // Measured from the component's root, NOT the container: the container
+      // sits inside the panel this component itself paints (white before the
+      // first build), and measuring through it would always answer "light".
+      const themed = isDarkBackdrop(outerRef.current?.parentElement ?? null) ? DARK_PANEL : LIGHT_PANEL
       // Style first and always: a rejected postalCode must never cost us the
-      // styling, because the styling is what keeps the fields legible.
-      const attempts: Array<Record<string, unknown>> = [
-        ...(postcode ? [{ style: cardStyle(), postalCode: postcode }] : []),
-        { style: cardStyle() },
-        {},
+      // styling, because the styling is what keeps the fields legible. The
+      // ladder ends light regardless of theme - light is the palette that can
+      // never render invisibly (see the palette notes above cardStyle).
+      const attempts: Array<{ options: Record<string, unknown>; palette: PanelPalette }> = [
+        ...(postcode ? [{ options: { style: cardStyle(themed), postalCode: postcode }, palette: themed }] : []),
+        { options: { style: cardStyle(themed) }, palette: themed },
+        ...(themed !== LIGHT_PANEL ? [{ options: { style: cardStyle(LIGHT_PANEL) }, palette: LIGHT_PANEL }] : []),
+        { options: {}, palette: LIGHT_PANEL },
       ]
       let created: SqCard | null = null
+      let chosen: PanelPalette = LIGHT_PANEL
       let lastError: unknown = null
-      for (const options of attempts) {
+      for (const attempt of attempts) {
         try {
-          created = await payments.card(options)
+          created = await payments.card(attempt.options)
+          chosen = attempt.palette
           break
         } catch (err) {
           lastError = err
@@ -211,6 +284,7 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
       card = created
       cardRef.current = created
       paymentsRef.current = payments
+      setPanel(chosen)
       setReady(true)
       onErrorRef.current(null)
     }
@@ -237,16 +311,16 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
     return () => registerRef.current(null)
   }, [submit])
 
-  // No theme observer any more. The card panel is light in both themes on
-  // purpose (see cardStyle), so there is nothing for a theme change to update -
-  // and the observer was re-sending a style object on every toggle, which is one
-  // more chance for Square to reject one and leave the form in a state nobody
-  // asked for.
+  // No theme observer, on purpose. The theme is read once, when the card is
+  // built (see the palette notes above cardStyle): a live restyle was one more
+  // chance for Square to reject a style object mid-checkout, and a rebuild
+  // would eat the digits the shopper had typed.
 
   // A postcode typed AFTER the card form was built. The form is drawn the
   // moment the shopper picks the method, which can be before they have finished
-  // the address above it, so the value that hides Square's own postcode box is
-  // not always known at creation. This is the catch-up.
+  // the address above it, so the postcode is not always known at creation.
+  // This is the catch-up - it feeds Square the AVS value; the current UK form
+  // draws no postcode field either way.
   const postcode = payer.address.postcode.trim()
   useEffect(() => {
     if (!ready || !postcode) return
@@ -254,16 +328,26 @@ export function SquareCardFields({ config, payer, onError, registerSubmit }: Sho
   }, [ready, postcode])
 
   return (
-    <div style={{ display: 'grid', gap: '0.5rem' }}>
-      {/* Painted to match the card fields inside it (see cardStyle), so the
-          panel reads as one deliberate white payment surface rather than as a
-          dark box with a white rectangle sitting in it. */}
+    <div ref={outerRef} style={{ display: 'grid', gap: '0.5rem' }}>
+      {/* Painted from the palette the card was ACTUALLY built with (not the
+          one the theme asked for), so panel and fields read as one deliberate
+          payment surface even when the build fell back to light. */}
       <div
         style={{
-          background: PANEL_BG,
-          border: `1px solid ${PANEL_BORDER}`,
+          background: panel.bg,
+          border: `1px solid ${panel.border}`,
           borderRadius: 8,
           padding: '0.75rem',
+          // The load-bearing line for dark mode, found the hard way. Square's
+          // iframes declare a light colour-scheme; on a page whose own
+          // colour-scheme is dark, the browser deems the two mismatched and
+          // paints an opaque WHITE backdrop behind each cross-origin iframe
+          // (standard behaviour, Chrome and Safari alike) - which blanks out
+          // every colour Square was correctly told to draw. Forcing this
+          // subtree light makes the schemes match, the backdrop transparent,
+          // and the style object visible. Affects nothing else: the only
+          // things in here are the iframes.
+          colorScheme: 'light',
         }}
       >
         <div ref={containerRef} />

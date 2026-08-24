@@ -28,6 +28,11 @@ import { readableOrGeneric } from '@/modules/square-payment-for-shop/components/
 // the SDK is fussier about the element than it lets on.
 const GOOGLE_PAY_ELEMENT_ID = 'sqp-google-pay-button'
 
+// Both buttons are drawn to the same size so they sit as a pair rather than as
+// two things that happened to land next to each other.
+const BUTTON_HEIGHT = 48
+const BUTTON_RADIUS = 8
+
 // Apple draws its button itself, through a -webkit-appearance value that only
 // Safari understands. It cannot be expressed in a React style object, so it
 // goes in a stylesheet of its own - and nothing about it is a colour of ours to
@@ -39,12 +44,26 @@ const APPLE_PAY_CSS = `
   -apple-pay-button-type: buy;
   -apple-pay-button-style: black;
   width: 100%;
-  height: 48px;
+  height: ${BUTTON_HEIGHT}px;
   border: 0;
-  border-radius: 8px;
+  border-radius: ${BUTTON_RADIUS}px;
   cursor: pointer;
 }
 `
+
+// What Square is asked to draw Google's button as. Chosen to match the Apple
+// Pay button beside it rather than to be interesting: black like Apple's, the
+// long "Buy with G Pay" wording rather than the bare logo, filling the column
+// it is given, the same corner radius, and no border - Google's default border
+// is a grey ring Apple's button does not have, which is what made the pair look
+// mismatched.
+const GOOGLE_PAY_BUTTON_OPTIONS = {
+  buttonColor: 'black',
+  buttonType: 'long',
+  buttonSizeMode: 'fill',
+  buttonRadius: BUTTON_RADIUS,
+  buttonBorderType: 'no_border',
+} as const
 
 // Which wallets the owner has switched on, off the provider's client fields.
 // Apple Pay is only ever offered once the domain-association file has been
@@ -215,7 +234,7 @@ export function SquareWalletButtons({ config, getPayer, amount, currency, disabl
           google = await payments.googlePay(paymentRequest)
           if (cancelled) { await google.destroy?.(); google = null }
           else {
-            await google.attach(`#${GOOGLE_PAY_ELEMENT_ID}`)
+            await google.attach(`#${GOOGLE_PAY_ELEMENT_ID}`, { ...GOOGLE_PAY_BUTTON_OPTIONS })
             if (cancelled) { await google.destroy?.(); google = null }
             else { googlePayRef.current = google; setGooglePayReady(true) }
           }
@@ -252,6 +271,14 @@ export function SquareWalletButtons({ config, getPayer, amount, currency, disabl
 
   return (
     <div
+      // Keeps the site's own button, link and image styling off both of these.
+      // Neither button is ours to paint: Apple's is a control the operating
+      // system draws, Google's is Google's, and both come with brand rules
+      // about it. Before this, a site with a hover colour set under Styles >
+      // Buttons turned the Google Pay button into a plain coloured rectangle
+      // with the logo scrubbed off, because that rule is `!important` and its
+      // `background` shorthand takes the logo with it.
+      data-cactus-unstyled=""
       style={{
         display: 'grid',
         gap: '0.5rem',
@@ -282,9 +309,17 @@ export function SquareWalletButtons({ config, getPayer, amount, currency, disabl
           <button type="button" className="sqp-apple-pay-button" onClick={payWithApple} aria-label="Pay with Apple Pay" />
         )}
         {/* Square renders Google's own button in here. The click is caught on
-            the container because the button inside it is Square's, not ours. */}
+            the container because the button inside it is Square's, not ours.
+            The height is ours though: Google's button fills what it is given
+            (buttonSizeMode 'fill'), and what it is given has to be the height
+            Apple's button is, or the pair sit at two different sizes. */}
         {wantGooglePay && (
-          <div id={GOOGLE_PAY_ELEMENT_ID} ref={googleContainerRef} onClick={payWithGoogle} />
+          <div
+            id={GOOGLE_PAY_ELEMENT_ID}
+            ref={googleContainerRef}
+            onClick={payWithGoogle}
+            style={{ height: BUTTON_HEIGHT }}
+          />
         )}
       </div>
       {/* Only drawn when a wallet actually is: "or" above a lone button reads as

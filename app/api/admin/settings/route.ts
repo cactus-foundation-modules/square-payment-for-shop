@@ -22,6 +22,14 @@ const PatchBody = z.object({
   // Stored for the same reason as the environment: a mode the owner can change
   // and see take effect, rather than one that waits for the next deployment.
   cardEntry: z.enum(['hosted', 'on-page']).optional(),
+  // Apple Pay / Google Pay buttons above "Place order" on the shop's own
+  // checkout. Only honoured alongside on-page card entry - the hosted page
+  // already carries Square's own wallet buttons.
+  walletsEnabled: z.boolean().optional(),
+  // Apple's domain-association file, pasted in from Square's dashboard. Capped
+  // well above the ~2KB Apple actually issues, and low enough that the settings
+  // table cannot be used as a filing cabinet.
+  applePayDomainAssociation: z.string().max(20000).optional(),
 })
 
 export async function PATCH(request: NextRequest) {

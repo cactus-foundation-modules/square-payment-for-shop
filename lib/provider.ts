@@ -90,6 +90,19 @@ async function getClientFields(): Promise<Record<string, unknown> | null> {
     applicationId: creds.applicationId,
     locationId: creds.locationId,
     environment: settings.environment,
+    // Which wallet buttons the review step may draw above "Place order". Both
+    // are the same Square account and the same credentials as the card fields -
+    // there is nothing extra to configure for Google Pay, and the only extra
+    // for Apple Pay is proving the domain.
+    //
+    // Apple Pay is withheld until the domain-association file has been pasted
+    // in, because Apple refuses its sheet on a domain it has not verified. A
+    // button that always fails is worse than no button: the shopper reads it as
+    // the shop being broken, not as Apple being fussy.
+    wallets: {
+      applePay: settings.walletsEnabled && settings.applePayDomainAssociation.trim().length > 0,
+      googlePay: settings.walletsEnabled,
+    },
   }
 }
 

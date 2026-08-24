@@ -14,66 +14,8 @@
 // confirm route, and the server charges it.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ShopCheckoutPaymentFieldsProps } from '@/modules/shop/components/public/checkout-payment-fields'
-
-type SqTokenResult = {
-  status: string
-  token?: string
-  errors?: Array<{ message?: string; detail?: string }>
-}
-
-type SqCard = {
-  attach: (target: HTMLElement | string) => Promise<void>
-  tokenize: () => Promise<SqTokenResult>
-  destroy?: () => Promise<void>
-  configure?: (options: Record<string, unknown>) => Promise<void>
-}
-
-type SqPayments = {
-  card: (options?: Record<string, unknown>) => Promise<SqCard>
-  verifyBuyer: (
-    token: string,
-    details: Record<string, unknown>
-  ) => Promise<{ token?: string } | null>
-}
-
-declare global {
-  interface Window {
-    Square?: { payments: (applicationId: string, locationId: string) => SqPayments }
-  }
-}
-
-// Square serves the SDK from a different origin per environment, and the two are
-// not interchangeable - the sandbox build refuses a production Application ID
-// and vice versa, with an error about the application rather than about the
-// script. Both origins are declared in this module's manifest (cspOrigins), so
-// the site's Content-Security-Policy allows them for as long as it is installed.
-function sdkUrl(environment: string): string {
-  return environment === 'production'
-    ? 'https://web.squarecdn.com/v1/square.js'
-    : 'https://sandbox.web.squarecdn.com/v1/square.js'
-}
-
-// One load per page, however many times the shopper switches method and back.
-let sdkPromise: Promise<void> | null = null
-
-function loadSquareSdk(environment: string): Promise<void> {
-  if (window.Square) return Promise.resolve()
-  if (sdkPromise) return sdkPromise
-  sdkPromise = new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = sdkUrl(environment)
-    script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => {
-      // Cleared so a shopper who tries again after their connection comes back
-      // gets a fresh attempt rather than the cached rejection.
-      sdkPromise = null
-      reject(new Error('The card payment form could not be loaded. Please try again.'))
-    }
-    document.head.appendChild(script)
-  })
-  return sdkPromise
-}
+import { loadSquareSdk, stringField, type SqCard, type SqPayments } from '@/modules/square-payment-for-shop/components/public/square-sdk'
+import { readableOrGeneric } from '@/modules/square-payment-for-shop/components/public/square-messages'
 
 // The card fields live inside Square's own iframes - several of them, one per
 // sensitive field - and neither the site's stylesheet nor its CSS variables
@@ -116,28 +58,6 @@ function cardStyle(): Record<string, Record<string, string>> {
     '.message-text.is-error': { color: PANEL_DANGER },
     '.message-icon.is-error': { color: PANEL_DANGER },
   }
-}
-
-// Square's client-side errors are usually written for a person ("Card number is
-// not valid"), but not always - some come back as a bare code, or with one
-// quoted inside them. Either way a shopper should never be shown one, so
-// anything that reads like machine output is swapped for wording that does not.
-//
-// Same rule as the server side (see lib/decline.ts): say the true, useful,
-// general thing rather than the precise, unreadable one.
-function readableOrGeneric(message: unknown, fallback: string): string {
-  if (typeof message !== 'string') return fallback
-  const trimmed = message.trim()
-  if (!trimmed) return fallback
-  // A bare SCREAMING_SNAKE code, or a sentence with one quoted inside it.
-  if (/^[A-Z0-9_]+$/.test(trimmed)) return fallback
-  if (/'[A-Z0-9_]{4,}'/.test(trimmed)) return fallback
-  return trimmed
-}
-
-function stringField(config: Record<string, unknown>, key: string): string {
-  const value = config[key]
-  return typeof value === 'string' ? value : ''
 }
 
 export function SquareCardFields({ config, payer, onError, registerSubmit }: ShopCheckoutPaymentFieldsProps) {

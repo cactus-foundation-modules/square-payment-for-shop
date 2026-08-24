@@ -108,6 +108,8 @@ type Settings = {
   paymentDescription: string
   environment: Environment
   cardEntry: CardEntry
+  walletsEnabled: boolean
+  applePayDomainAssociation: string
 }
 
 type SqLocation = { id: string; name: string; status: string; currency: string | null }
@@ -596,6 +598,48 @@ export function SquareSettingsTab() {
                 </div>
               )}
             </div>
+
+            {settings.cardEntry === 'on-page' && (
+              <div className="field">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text)' }}>
+                  <input
+                    type="checkbox"
+                    checked={settings.walletsEnabled}
+                    disabled={savingSettings}
+                    onChange={(e) => saveSettings({ ...settings, walletsEnabled: e.target.checked })}
+                  />
+                  Offer Apple Pay and Google Pay
+                </label>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: 'var(--space-2) 0 0' }}>
+                  Adds the wallet buttons just above your Place order button, using the same Square
+                  account as the card fields. Each shopper only sees the one their device actually
+                  offers - Apple Pay on Apple devices, Google Pay nearly everywhere else - and
+                  anyone whose device offers neither simply carries on paying by card.
+                </p>
+                {settings.walletsEnabled && (
+                  <div style={{ marginTop: 'var(--space-3)' }}>
+                    <label htmlFor="sqp-apple-domain">Apple Pay domain file</label>
+                    <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
+                      Google Pay works the moment you tick the box above. Apple is fussier: it wants
+                      proof you own this website before it will show its button. Register your
+                      domain in your Square dashboard under Apple Pay, download the small file
+                      Square gives you, open it in any text editor and paste the contents here.
+                      Until you do, the Apple Pay button stays hidden - a button that always fails
+                      is worse than no button at all.
+                    </p>
+                    <textarea
+                      id="sqp-apple-domain"
+                      rows={4}
+                      value={settings.applePayDomainAssociation}
+                      placeholder="Paste the contents of the file Square gave you"
+                      onChange={(e) => setSettings({ ...settings, applePayDomainAssociation: e.target.value })}
+                      onBlur={() => saveSettings(settings)}
+                      style={{ width: '100%', fontFamily: 'var(--font-mono, monospace)', fontSize: 'var(--text-sm)' }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="field">
               <label htmlFor="sqp-description">Payment description</label>

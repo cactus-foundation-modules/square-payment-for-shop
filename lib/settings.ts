@@ -34,6 +34,17 @@ export type SquareSettings = {
   paymentDescription: string
   environment: SquareEnvironment
   cardEntry: SquareCardEntry
+  // Whether the Apple Pay and Google Pay buttons are drawn above "Place order".
+  // Only ever honoured alongside on-page card entry: the hosted page carries
+  // Square's own wallet buttons already, and drawing a second pair on the way
+  // to it would be two ways of doing one thing.
+  walletsEnabled: boolean
+  // The contents of Apple's domain-association file, pasted in by the owner
+  // from Square's developer dashboard. Served at the fixed path Apple demands
+  // via core's .well-known route (see lib/well-known.ts). Blank until the owner
+  // has been through Apple's registration - and while it is blank the Apple Pay
+  // button is not offered, because Apple would refuse it anyway.
+  applePayDomainAssociation: string
 }
 
 // The fallback for a site that has never picked an environment on the settings
@@ -61,6 +72,8 @@ const FALLBACK: SquareSettings = {
   paymentDescription: '',
   environment: 'sandbox',
   cardEntry: 'hosted',
+  walletsEnabled: false,
+  applePayDomainAssociation: '',
 }
 
 export async function getSquareSettings(): Promise<SquareSettings> {
@@ -74,6 +87,11 @@ export async function getSquareSettings(): Promise<SquareSettings> {
     paymentDescription: (r.payment_description as string | null) ?? '',
     environment: toEnvironment(r.environment),
     cardEntry: toCardEntry(r.card_entry),
+    // Coalesced rather than cast: this reads a row that may predate
+    // migrations/004 by a deploy or two, and `undefined as boolean` is how a
+    // shop ends up with a wallet button it never asked for.
+    walletsEnabled: r.wallets_enabled === true,
+    applePayDomainAssociation: (r.apple_pay_domain_association as string | null) ?? '',
   }
 }
 
@@ -86,13 +104,15 @@ export async function updateSquareSettings(input: Partial<SquareSettings>): Prom
   const current = await getSquareSettings()
   const merged = { ...current, ...input }
   await prisma.$executeRaw`
-    INSERT INTO "sqp_settings" ("id", "enabled", "payment_description", "environment", "card_entry", "updated_at")
-    VALUES ('singleton', ${merged.enabled}, ${merged.paymentDescription}, ${merged.environment}, ${merged.cardEntry}, CURRENT_TIMESTAMP)
+    INSERT INTO "sqp_settings" ("id", "enabled", "payment_description", "environment", "card_entry", "wallets_enabled", "apple_pay_domain_association", "updated_at")
+    VALUES ('singleton', ${merged.enabled}, ${merged.paymentDescription}, ${merged.environment}, ${merged.cardEntry}, ${merged.walletsEnabled}, ${merged.applePayDomainAssociation}, CURRENT_TIMESTAMP)
     ON CONFLICT ("id") DO UPDATE SET
       "enabled" = ${merged.enabled},
       "payment_description" = ${merged.paymentDescription},
       "environment" = ${merged.environment},
       "card_entry" = ${merged.cardEntry},
+      "wallets_enabled" = ${merged.walletsEnabled},
+      "apple_pay_domain_association" = ${merged.applePayDomainAssociation},
       "updated_at" = CURRENT_TIMESTAMP
   `
   return getSquareSettings()

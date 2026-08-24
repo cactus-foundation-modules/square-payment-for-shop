@@ -1,13 +1,13 @@
 {
   "name": "square-payment-for-shop",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "tablePrefix": "sqp_",
-  "description": "Square card payments for the Shop: taken in Square's own card fields on your own checkout, or on Square's hosted page, with refunds and webhook confirmation. No card data ever touches the site.",
-  "requiresCoreVersion": "0.5.1242",
+  "description": "Square card payments for the Shop: taken in Square's own card fields on your own checkout - with Apple Pay and Google Pay buttons beside them - or on Square's hosted page, with refunds and webhook confirmation. No card data ever touches the site.",
+  "requiresCoreVersion": "0.5.1255",
   "requiresModules": [
     {
       "name": "shop",
-      "minVersion": "0.1.308"
+      "minVersion": "0.1.311"
     }
   ],
   "requiredEnvVars": [
@@ -71,6 +71,18 @@
       "id": "SQUARE",
       "import": "./components/public/SquareCardFields",
       "component": "SquareCardFields"
+    },
+    {
+      "point": "shop.checkout-wallet-buttons",
+      "id": "SQUARE",
+      "import": "./components/public/SquareWalletButtons",
+      "component": "SquareWalletButtons"
+    },
+    {
+      "point": "core.well-known-files",
+      "id": "square-payment-for-shop",
+      "import": "./lib/well-known",
+      "component": "squareWellKnownFiles"
     }
   ],
   "teardown": [
@@ -92,7 +104,8 @@
       "https://js.squareup.com",
       "https://js.squareupsandbox.com",
       "https://connect.squareup.com",
-      "https://connect.squareupsandbox.com"
+      "https://connect.squareupsandbox.com",
+      "https://pay.google.com"
     ],
     "style": [
       "https://*.squarecdn.com",
@@ -107,13 +120,18 @@
       "https://pci-connect.squareup.com",
       "https://pci-connect.squareupsandbox.com",
       "https://connect.squareup.com",
-      "https://connect.squareupsandbox.com"
+      "https://connect.squareupsandbox.com",
+      "https://pay.google.com",
+      "https://google.com",
+      "https://www.google.com"
     ],
     "img": [
       "https://*.squarecdn.com",
       "https://web.squarecdn.com",
       "https://sandbox.web.squarecdn.com",
-      "https://d1g145x70srn7h.cloudfront.net"
+      "https://d1g145x70srn7h.cloudfront.net",
+      "https://www.gstatic.com",
+      "https://fonts.gstatic.com"
     ],
     "font": [
       "https://*.squarecdn.com",

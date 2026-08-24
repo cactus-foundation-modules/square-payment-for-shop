@@ -11,6 +11,10 @@ CREATE TABLE IF NOT EXISTS "sqp_settings" (
     "payment_description" TEXT NOT NULL DEFAULT '',
     "environment" TEXT,
     "card_entry" TEXT NOT NULL DEFAULT 'hosted',
+    -- Apple Pay / Google Pay buttons above "Place order", and the file Apple
+    -- makes the domain serve before it will show its sheet. See 004.
+    "wallets_enabled" BOOLEAN NOT NULL DEFAULT false,
+    "apple_pay_domain_association" TEXT,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "sqp_settings_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "sqp_settings_singleton" CHECK ("id" = 'singleton'),

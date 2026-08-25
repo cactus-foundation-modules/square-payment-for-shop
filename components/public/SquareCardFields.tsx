@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ShopCheckoutPaymentFieldsProps } from '@/modules/shop/components/public/checkout-payment-fields'
 import { loadSquareSdk, stringField, type SqCard, type SqPayments } from '@/modules/square-payment-for-shop/components/public/square-sdk'
 import { readableOrGeneric } from '@/modules/square-payment-for-shop/components/public/square-messages'
+import { isDarkBackdrop } from '@/modules/square-payment-for-shop/components/public/backdrop'
 
 // The card fields live inside Square's own iframes - several of them, one per
 // sensitive field - and neither the site's stylesheet nor its CSS variables
@@ -71,27 +72,6 @@ const DARK_PANEL: PanelPalette = {
   border: '#3f3f42',
   focus: '#8a8a90',
   danger: '#e06c5f',
-}
-
-// Whether the page behind the card fields is dark. NOT the data-theme
-// attribute: a site whose brand palette is dark paints a dark checkout while
-// data-theme still says "light", and the question that decides the palette is
-// what colour actually surrounds the fields. So: walk up from the container to
-// the first element with an opaque background and measure it. The attribute is
-// only the tie-breaker when nothing opaque is found.
-function isDarkBackdrop(el: HTMLElement | null): boolean {
-  for (let node = el; node; node = node.parentElement) {
-    const bg = getComputedStyle(node).backgroundColor
-    // Computed backgroundColor comes back as rgb()/rgba() in every browser
-    // this runs in; anything else (unlikely) just moves on up the tree.
-    const m = bg.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,/\s]+([\d.]+))?\s*\)/)
-    if (!m) continue
-    const alpha = m[4] === undefined ? 1 : parseFloat(m[4])
-    if (alpha < 0.5) continue
-    const lum = (0.2126 * Number(m[1]) + 0.7152 * Number(m[2]) + 0.0722 * Number(m[3])) / 255
-    return lum < 0.5
-  }
-  return document.documentElement.getAttribute('data-theme') === 'dark'
 }
 
 function cardStyle(palette: PanelPalette): Record<string, Record<string, string>> {

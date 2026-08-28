@@ -11,6 +11,10 @@ export type SqpPayment = {
   status: string
   amount: string
   currency: string
+  // Where to send the payer once Square hands them back from the hosted page.
+  // NULL for a payment started at the checkout, which is the shop's confirmation
+  // page - see migration 005.
+  returnPath: string | null
 }
 
 function mapRow(r: Record<string, unknown>): SqpPayment {
@@ -24,6 +28,7 @@ function mapRow(r: Record<string, unknown>): SqpPayment {
     status: r.status as string,
     amount: (r.amount as { toString(): string }).toString(),
     currency: r.currency as string,
+    returnPath: (r.return_path as string | null) ?? null,
   }
 }
 
@@ -37,15 +42,16 @@ export async function createSqpPayment(input: {
   amount: number
   currency: string
   status?: string
+  returnPath?: string | null
 }): Promise<SqpPayment> {
   const id = randomUUID()
   await prisma.$executeRaw`
     INSERT INTO "sqp_payments" (
       "id", "order_id", "order_number", "payment_link_id", "square_order_id",
-      "status", "amount", "currency", "created_at", "updated_at"
+      "status", "amount", "currency", "return_path", "created_at", "updated_at"
     ) VALUES (
       ${id}, ${input.orderId}, ${input.orderNumber}, ${input.paymentLinkId ?? null}, ${input.squareOrderId},
-      ${input.status ?? 'PENDING'}, ${input.amount}, ${input.currency}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      ${input.status ?? 'PENDING'}, ${input.amount}, ${input.currency}, ${input.returnPath ?? null}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `
   const row = await getSqpPaymentById(id)

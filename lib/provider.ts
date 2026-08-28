@@ -31,6 +31,18 @@ function toMinorUnits(amount: number): number {
   return Math.round(amount * 100)
 }
 
+// A path on this site, or nothing at all.
+//
+// The shop hands this over and the shop is trustworthy, but what is built from
+// it is a URL somebody's browser will be sent to - so it is checked here rather
+// than assumed, and checked for the shape that matters: one leading slash, and
+// no second one. "//evil.example" is a protocol-relative URL, and a browser
+// treats it as another site entirely.
+function safeReturnPath(path: string | undefined): string | null {
+  if (!path || !path.startsWith('/') || path.startsWith('//')) return null
+  return path
+}
+
 // Exported for the tests, along with readOnPagePayload and resultFromPayment
 // below: these three are the whole of the on-page path's judgement, and none of
 // them can be exercised through the provider itself without a live Square.
@@ -131,6 +143,9 @@ async function createIntent(order: ShpOrderDraft): Promise<ShpPaymentIntent> {
       squareOrderId: squareOrder.id,
       amount: order.amount,
       currency: order.currency,
+      // Nothing redirects on this path, but the row is the same row and a later
+      // reader should not have to guess where this payment came from.
+      returnPath: safeReturnPath(order.returnPath),
     })
 
     return {
@@ -166,6 +181,10 @@ async function createIntent(order: ShpOrderDraft): Promise<ShpPaymentIntent> {
     squareOrderId: link.squareOrderId,
     amount: order.amount,
     currency: order.currency,
+    // Where the return route puts them down afterwards. Kept here rather than in
+    // the redirect URL: that URL comes back through the payer's own browser, so
+    // a destination read out of it is one anybody can write.
+    returnPath: safeReturnPath(order.returnPath),
   })
 
   return { approvalUrl: link.url, providerOrderId: link.squareOrderId }
@@ -339,6 +358,12 @@ export const squarePaymentProvider: ShpPaymentProvider = {
   // order at all rather than a PAYMENT_FAILED row for a basket the shopper is
   // about to pay for with their other card.
   orderCreation: 'on-payment',
+  // Nothing here assumes a checkout. createIntent works off an order id and an
+  // amount, and every settlement path goes through materialiseDraftOrder, which
+  // hands back an order that already exists just as happily as it creates one -
+  // so a bank transfer that has gone unpaid can be settled by card from the
+  // customer's own order page, whichever way this shop takes its cards.
+  settlesExistingOrder: true,
   isAvailable,
   createIntent,
   confirmPayment,

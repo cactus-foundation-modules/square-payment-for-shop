@@ -1,13 +1,13 @@
 {
   "name": "square-payment-for-shop",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "tablePrefix": "sqp_",
   "description": "Square card payments for the Shop: taken in Square's own card fields on your own checkout - with Apple Pay and Google Pay buttons beside them - or on Square's hosted page, with refunds and webhook confirmation. No card data ever touches the site.",
   "requiresCoreVersion": "0.5.1259",
   "requiresModules": [
     {
       "name": "shop",
-      "minVersion": "0.1.311"
+      "minVersion": "0.1.362"
     }
   ],
   "requiredEnvVars": [

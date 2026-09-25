@@ -4,6 +4,7 @@
 import { getOrderById, markOrderAwaitingConfirmation, markOrderPaid, markOrderPaymentFailed, setOrderPaymentReference } from '@/modules/shop/lib/db/orders'
 import { getCheckoutDraft, materialiseDraftOrder } from '@/modules/shop/lib/checkout-draft'
 import { fulfillPaidOrder } from '@/modules/shop/lib/order-fulfillment'
+import { getOrderChargeForSettlement, settleOrderChargePayment } from '@/modules/shop/lib/order-charges'
 import { isPaymentCollected, isPaymentFailed, type SqPayment } from '@/modules/square-payment-for-shop/lib/square'
 import { updateSqpPayment, type SqpPayment } from '@/modules/square-payment-for-shop/lib/db'
 
@@ -30,6 +31,26 @@ export function paymentMatchesOrder(
 
 export async function settleFromPayment(row: SqpPayment, payment: SqPayment): Promise<void> {
   await updateSqpPayment(row.id, { paymentId: payment.id, status: payment.status })
+
+  // An extra charge on an order (a redelivery fee, say) is paid against the
+  // charge's own id, not the order's - see shop's lib/order-charges.ts. It has
+  // no order and no draft under that id, so it is settled here or not at all.
+  const charge = await getOrderChargeForSettlement(row.orderId)
+  if (charge) {
+    // A failed card leaves the charge owed, which is what it already was.
+    if (isPaymentFailed(payment.status)) return
+    if (!paymentMatchesOrder(payment, charge)) {
+      console.error(
+        `[square-payment] payment ${payment.id} does not match charge ${charge.id}: ` +
+        `collected ${payment.amount} ${payment.currency}, charge expects ${toMinorUnits(Number(charge.total))} ${charge.currency}`,
+      )
+      return
+    }
+    // Authorised, not captured: the next webhook finishes it.
+    if (!isPaymentCollected(payment.status)) return
+    await settleOrderChargePayment(charge.id, { method: 'SQUARE', providerReference: payment.id })
+    return
+  }
 
   if (isPaymentFailed(payment.status)) {
     // FAILED and CANCELED are both pre-capture outcomes on a hosted checkout

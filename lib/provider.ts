@@ -124,6 +124,25 @@ async function createIntent(order: ShpOrderDraft): Promise<ShpPaymentIntent> {
   const currency = order.currency.toUpperCase()
 
   if (settings.cardEntry === 'on-page') {
+    // A second intent for the same payment - the shopper reloaded the page and
+    // picked the card again - gets the Square order it already has. The
+    // idempotency key below hands back that same order anyway, and inserting a
+    // second row for it broke the unique index on square_order_id, so the
+    // second try failed with nothing to show for it. Only while nothing has
+    // been paid on it and the figures still agree; anything else goes on as
+    // before.
+    const existing = await getSqpPaymentByOrderId(order.orderId)
+    if (
+      existing?.squareOrderId && !existing.paymentLinkId && !existing.paymentId &&
+      toMinorUnits(Number(existing.amount)) === toMinorUnits(order.amount) &&
+      existing.currency.toUpperCase() === currency
+    ) {
+      return {
+        providerOrderId: existing.squareOrderId,
+        clientFields: { amount: order.amount.toFixed(2), currency },
+      }
+    }
+
     // The Square order is made now, before the shopper has typed a card. Two
     // reasons: the webhook matches a payment back to our row by the Square order
     // id and so needs it stored up front, and Square refuses a payment whose
@@ -364,6 +383,12 @@ export const squarePaymentProvider: ShpPaymentProvider = {
   // so a bank transfer that has gone unpaid can be settled by card from the
   // customer's own order page, whichever way this shop takes its cards.
   settlesExistingOrder: true,
+  // And an extra charge raised on an order after it was placed - a redelivery
+  // fee, say. createIntent and confirmPayment only ever work off the id and the
+  // amount they are handed, which for a charge are the charge's own; the
+  // webhook and the return route both go through settleFromPayment, which
+  // recognises a charge id and settles it there (see lib/settle.ts).
+  settlesOrderCharges: true,
   isAvailable,
   createIntent,
   confirmPayment,

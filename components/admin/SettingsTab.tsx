@@ -19,6 +19,7 @@
 // token look like a saved sandbox token.
 import { useEffect, useState } from 'react'
 import { SettingsHeaderActions, SettingsHeaderStatus } from '@/components/admin/SettingsHeaderActions'
+import { InfoTip } from '@/components/admin/InfoTip'
 
 type Environment = 'sandbox' | 'production'
 
@@ -506,12 +507,7 @@ export function SquareSettingsTab() {
             here rather than in the hosting project, so it works the same way
             everywhere and needs no deployment to take hold. */}
         <div className="field field--wide">
-          <label htmlFor="sqp-environment">Which environment the shop uses</label>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
-            Saved as soon as you pick it and live straight away - no deployment needed. Each
-            environment uses its own credentials, so make sure the ones below are filled in for
-            whichever you choose.
-          </p>
+          <label htmlFor="sqp-environment">Which environment the shop uses <InfoTip>Saved as soon as you pick it and live straight away - no deployment needed. Each environment uses its own credentials, so make sure the ones below are filled in for whichever you choose.</InfoTip></label>
           <select
             id="sqp-environment"
             value={environment}
@@ -545,14 +541,7 @@ export function SquareSettingsTab() {
         )}
 
         <div className="field field--wide" style={{ marginTop: 'var(--space-4)' }}>
-          <label htmlFor="sqp-webhook-url">Webhook URL</label>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
-            Add this as a webhook subscription in your Square developer dashboard (subscribe to the
-            payment events) so payments are confirmed automatically. Square shows the signature key
-            for the subscription once it exists - paste that into the box above. The URL must match
-            exactly - Square&apos;s signature covers it. Sandbox and production each need their own
-            subscription.
-          </p>
+          <label htmlFor="sqp-webhook-url">Webhook URL <InfoTip>Add this as a webhook subscription in your Square developer dashboard (subscribe to the payment events) so payments are confirmed automatically. Square shows the signature key for the subscription once it exists - paste that into the box above. The URL must match exactly - Square&apos;s signature covers it. Sandbox and production each need their own subscription.</InfoTip></label>
           <input id="sqp-webhook-url" type="text" value={webhookUrl} readOnly onFocus={(e) => e.target.select()} />
         </div>
       </div>
@@ -569,7 +558,7 @@ export function SquareSettingsTab() {
 
         {settings && (
           <>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', margin: '0 0 var(--space-4)', color: 'var(--color-text)' }}>
+            <label className="settings-check">
               <input
                 type="checkbox"
                 checked={settings.enabled}
@@ -580,12 +569,7 @@ export function SquareSettingsTab() {
             </label>
 
             <div className="field field--wide">
-              <label htmlFor="sqp-card-entry">Where the card is typed</label>
-              <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
-                Either way the card goes straight to Square in Square&apos;s own secure fields and
-                never touches this site. The difference is whether the shopper leaves your checkout
-                to do it - and a good few who leave never come back.
-              </p>
+              <label htmlFor="sqp-card-entry">Where the card is typed <InfoTip>Either way the card goes straight to Square in Square&apos;s own secure fields and never touches this site. The difference is whether the shopper leaves your checkout to do it - and a good few who leave never come back.</InfoTip></label>
               <select
                 id="sqp-card-entry"
                 value={settings.cardEntry}
@@ -606,7 +590,7 @@ export function SquareSettingsTab() {
 
             {settings.cardEntry === 'on-page' && (
               <div className="field field--wide">
-                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text)' }}>
+                <label className="settings-check">
                   <input
                     type="checkbox"
                     checked={settings.walletsEnabled}
@@ -614,24 +598,11 @@ export function SquareSettingsTab() {
                     onChange={(e) => saveSettings({ ...settings, walletsEnabled: e.target.checked })}
                   />
                   Offer Apple Pay and Google Pay
+                  <InfoTip>Adds the wallet buttons just above your Place order button, using the same Square account as the card fields. Each shopper only sees the one their device actually offers - Apple Pay on Apple devices, Google Pay nearly everywhere else - and anyone whose device offers neither simply carries on paying by card.</InfoTip>
                 </label>
-                <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: 'var(--space-2) 0 0' }}>
-                  Adds the wallet buttons just above your Place order button, using the same Square
-                  account as the card fields. Each shopper only sees the one their device actually
-                  offers - Apple Pay on Apple devices, Google Pay nearly everywhere else - and
-                  anyone whose device offers neither simply carries on paying by card.
-                </p>
                 {settings.walletsEnabled && (
                   <div style={{ marginTop: 'var(--space-3)' }}>
-                    <label htmlFor="sqp-apple-domain">Apple Pay domain file</label>
-                    <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
-                      Google Pay works the moment you tick the box above. Apple is fussier: it wants
-                      proof you own this website before it will show its button. Register your
-                      domain in your Square dashboard under Apple Pay, download the small file
-                      Square gives you, open it in any text editor and paste the contents here.
-                      Until you do, the Apple Pay button stays hidden - a button that always fails
-                      is worse than no button at all.
-                    </p>
+                    <label htmlFor="sqp-apple-domain">Apple Pay domain file <InfoTip>Google Pay works the moment you tick the box above. Apple is fussier: it wants proof you own this website before it will show its button. Register your domain in your Square dashboard under Apple Pay, download the small file Square gives you, open it in any text editor and paste the contents here. Until you do, the Apple Pay button stays hidden - a button that always fails is worse than no button at all.</InfoTip></label>
                     <textarea
                       id="sqp-apple-domain"
                       rows={4}
@@ -647,12 +618,7 @@ export function SquareSettingsTab() {
             )}
 
             <div className="field field--wide">
-              <label htmlFor="sqp-description">Payment description</label>
-              <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
-                What this payment method is called at your checkout and on your orders, and what
-                the shopper sees on their Square receipt (with the order number added). Leave blank
-                for &ldquo;Card payment (Square)&rdquo;.
-              </p>
+              <label htmlFor="sqp-description">Payment description <InfoTip>What this payment method is called at your checkout and on your orders, and what the shopper sees on their Square receipt (with the order number added). Leave blank for &ldquo;Card payment (Square)&rdquo;.</InfoTip></label>
               <input
                 id="sqp-description"
                 type="text"

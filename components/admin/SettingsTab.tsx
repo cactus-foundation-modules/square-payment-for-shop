@@ -329,6 +329,7 @@ export function SquareSettingsTab() {
     return (
       <div
         key={env}
+        className="settings-fields"
         style={{
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)',
@@ -504,7 +505,7 @@ export function SquareSettingsTab() {
         {/* Outside the local-development branch on purpose: the choice is kept
             here rather than in the hosting project, so it works the same way
             everywhere and needs no deployment to take hold. */}
-        <div className="field">
+        <div className="field field--wide">
           <label htmlFor="sqp-environment">Which environment the shop uses</label>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
             Saved as soon as you pick it and live straight away - no deployment needed. Each
@@ -543,7 +544,7 @@ export function SquareSettingsTab() {
           </>
         )}
 
-        <div className="field" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="field field--wide" style={{ marginTop: 'var(--space-4)' }}>
           <label htmlFor="sqp-webhook-url">Webhook URL</label>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
             Add this as a webhook subscription in your Square developer dashboard (subscribe to the
@@ -578,7 +579,7 @@ export function SquareSettingsTab() {
               Offer Square card payments at checkout
             </label>
 
-            <div className="field">
+            <div className="field field--wide">
               <label htmlFor="sqp-card-entry">Where the card is typed</label>
               <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
                 Either way the card goes straight to Square in Square&apos;s own secure fields and
@@ -604,7 +605,7 @@ export function SquareSettingsTab() {
             </div>
 
             {settings.cardEntry === 'on-page' && (
-              <div className="field">
+              <div className="field field--wide">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text)' }}>
                   <input
                     type="checkbox"
@@ -645,7 +646,7 @@ export function SquareSettingsTab() {
               </div>
             )}
 
-            <div className="field">
+            <div className="field field--wide">
               <label htmlFor="sqp-description">Payment description</label>
               <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-2)' }}>
                 What this payment method is called at your checkout and on your orders, and what

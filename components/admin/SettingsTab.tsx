@@ -18,6 +18,7 @@
 // "set for that environment" - one shared set of fields made a saved production
 // token look like a saved sandbox token.
 import { useEffect, useState } from 'react'
+import { SettingsHeaderActions, SettingsHeaderStatus } from '@/components/admin/SettingsHeaderActions'
 
 type Environment = 'sandbox' | 'production'
 
@@ -432,7 +433,7 @@ export function SquareSettingsTab() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+    <div className="settings-masonry">
       <div className="card">
         <h2 className="card-title">Square</h2>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', margin: '0 0 var(--space-4)' }}>
@@ -533,9 +534,12 @@ export function SquareSettingsTab() {
           <>
             {ENVIRONMENTS.map((e) => renderCredentials(e.id))}
 
-            <button className="btn btn-primary" disabled={savingConn} onClick={saveConnection}>
-              {savingConn ? 'Saving…' : 'Save connection'}
-            </button>
+            <SettingsHeaderActions>
+              <SettingsHeaderStatus message={savedConn ? 'Saved. Live from the next deployment.' : null} error={connError} />
+              <button className="btn btn-primary" disabled={savingConn} onClick={saveConnection}>
+                {savingConn ? 'Saving…' : 'Save connection'}
+              </button>
+            </SettingsHeaderActions>
           </>
         )}
 

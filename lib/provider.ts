@@ -15,7 +15,7 @@
 import { createHash } from 'crypto'
 import { getSiteUrl } from '@/lib/config/env'
 import type {
-  ShpOrderDraft, ShpPaymentIntent, ShpPaymentProvider, ShpPaymentResult, ShpRefundRequest, ShpRefundResult,
+  ShpAcceptedBrands, ShpOrderDraft, ShpPaymentIntent, ShpPaymentProvider, ShpPaymentResult, ShpRefundRequest, ShpRefundResult,
 } from '@/modules/shop/lib/payments/provider'
 import { getSquareCredentials, isSquareConfigured } from '@/modules/square-payment-for-shop/lib/env'
 import { getSquareSettings } from '@/modules/square-payment-for-shop/lib/settings'
@@ -78,6 +78,27 @@ async function isAvailable(): Promise<boolean> {
 async function getLabel(): Promise<string> {
   const settings = await getSquareSettings()
   return settings.paymentDescription
+}
+
+// The card brands a UK Square account takes online. Square decides this, not
+// the shop - there is no switch for it - so it is a fixed list rather than a
+// setting. Visa Electron and V Pay are Visa debit cards and go under Visa.
+// Discover, JCB and UnionPay are NOT taken on UK accounts, which is why they
+// are absent: a shopper told otherwise finds out at the card box.
+// (help: squareup.com/help/gb/en/article/5085-accepted-cards)
+export const SQUARE_UK_CARD_BRANDS = ['Visa', 'Mastercard', 'American Express', 'Maestro'] as const
+
+// What the method takes, for anything that has to say it in words. The
+// wallets follow the same rule getClientFields applies to the buttons, so the
+// two can never disagree: only on the shop's own checkout, only with wallets
+// switched on, and Apple Pay only once its domain file is in.
+async function getAcceptedBrands(): Promise<ShpAcceptedBrands> {
+  const settings = await getSquareSettings()
+  const onPage = settings.cardEntry === 'on-page' && settings.walletsEnabled
+  const wallets: string[] = []
+  if (onPage && settings.applePayDomainAssociation.trim().length > 0) wallets.push('Apple Pay')
+  if (onPage) wallets.push('Google Pay')
+  return { cards: [...SQUARE_UK_CARD_BRANDS], wallets }
 }
 
 // The publishable half of what the browser's Square SDK needs, and nothing that
@@ -364,6 +385,7 @@ export const squarePaymentProvider: ShpPaymentProvider = {
   logo: squareLogo,
   getLabel,
   getClientFields,
+  getAcceptedBrands,
   confirmMode: 'auto',
   // No order until the card is authorised, in BOTH modes.
   //
